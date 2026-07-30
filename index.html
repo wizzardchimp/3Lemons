@@ -1310,18 +1310,51 @@ function editSavedSite(id) {
   }
 }
 
-function removeLocationById(id) {
-  const loc = config.locations.find(l => l.id === id);
-  if (!loc) return;
-  if (!confirm('Remove site "' + loc.name + '" from config? (History on the sheet is kept.)')) return;
-  config.locations = config.locations.filter(l => l.id !== id);
+async function removeLocationById(id) {
+  id = String(id || '');
+  const loc = config.locations.find(l => String(l.id) === id);
+  if (!loc) {
+    showAppAlert('Site not found', 'Could not find that site. Try refreshing the page.');
+    return;
+  }
+  const ok = confirm(
+    'Remove site "' + (loc.name || 'Unnamed') + '"?\n\n' +
+    '• It will disappear from Daily Entry and Settings\n' +
+    '• Collection history on the Google Sheet is NOT deleted\n\n' +
+    'Continue?'
+  );
+  if (!ok) return;
+
+  config.locations = config.locations.filter(l => String(l.id) !== id);
+  if (String(draftEditingId) === id) resetDraftForm();
   saveConfigLocal();
-  saveConfigToSheet({ silent: true }).then(() => {
-    if (draftEditingId === id) resetDraftForm();
-    renderSettings();
-    renderForm();
-    render21DayTotals();
-  });
+
+  showLoading('Removing site…');
+  let sheetOk = false;
+  try {
+    sheetOk = await saveConfigToSheet({ silent: true });
+  } catch (e) {
+    console.error(e);
+  } finally {
+    hideLoading();
+  }
+
+  // Refresh all UI that lists sites
+  renderSettings();
+  renderForm();
+  render21DayTotals();
+  updateHistoryCount();
+  if (document.getElementById('page-history')?.classList.contains('active')) showHistory();
+  if (document.getElementById('page-monthly')?.classList.contains('active')) showMonthlySummary();
+
+  if (sheetOk) {
+    showAppAlert('Site removed', '"' + (loc.name || 'Unnamed') + '" was removed from Settings. History on the sheet was kept.');
+  } else {
+    showAppAlert(
+      'Removed locally',
+      '"' + (loc.name || 'Unnamed') + '" was removed on this device, but the sheet may not have updated. Check your API URL and try again.'
+    );
+  }
 }
 
 function readDraftFromDom() {
