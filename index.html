@@ -159,14 +159,12 @@ h3{font-size:14px;margin:0 0 8px}
     <span id="deleteLastMsg" class="msg"></span>
   </div>
 
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0 8px">
-    <div>
-      <h2 style="margin:0">Sites &amp; Rates</h2>
-      <p class="hint">Add, edit or remove locations. Use <strong>Save site</strong> on each card to sync to the sheet.</p>
-    </div>
-    <button class="btn btn-primary" onclick="addLocation()">+ Add Site</button>
+  <div style="margin:16px 0 8px">
+    <h2 style="margin:0">Sites &amp; Rates</h2>
+    <p class="hint">Fill in a site below, then <strong>Save site</strong> to commit rates to the sheet. The form clears for the next site.</p>
   </div>
   <div id="settingsContainer"></div>
+  <div id="savedSitesList"></div>
   <div id="mergeSitesContainer"></div>
 </div>
 
@@ -204,6 +202,9 @@ let config;
 let cachedEntries = [];
 let entriesLoaded = false;
 let _monthlyFiltered = [];
+/** Draft form for add/edit site — cleared after Save site */
+let draftSite = null;
+let draftEditingId = null; // null = new site; id = editing existing
 
 // ===== CONFIG =====
 function loadConfigLocal() {
@@ -1084,58 +1085,225 @@ function closeMonthModal() {
 }
 
 // ===== SETTINGS CRUD =====
+function blankDraftSite() {
+  return {
+    id: uid(),
+    name: '',
+    nameHistory: [],
+    hasPool: false,
+    poolMode: 'fifty',
+    poolRent: 0,
+    poolPercent: 50,
+    categories: [
+      { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0 },
+      { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0 }
+    ]
+  };
+}
+
+function ensureDraft() {
+  if (!draftSite) {
+    draftSite = blankDraftSite();
+    draftEditingId = null;
+  }
+}
+
+function resetDraftForm() {
+  draftSite = blankDraftSite();
+  draftEditingId = null;
+}
+
 function renderSettings() {
   document.getElementById('apiUrlInput').value = getApiUrl();
-  const container = document.getElementById('settingsContainer');
-  let html = '';
+  ensureDraft();
+  const loc = draftSite;
+  const mode = loc.poolMode || 'fifty';
+  const editing = !!draftEditingId;
+  const title = editing ? 'Edit site' : 'New site';
+
+  let html = `<div class="settings-card" id="siteDraftCard">
+    <h3 style="margin:0 0 10px">${title}</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <label style="flex:1">Site name<br><input type="text" id="draft_name" value="${esc(loc.name)}" placeholder="e.g. Alberto" onchange="draftSite.name=this.value.trim()"></label>
+    </div>
+    <label style="margin-top:10px"><input type="checkbox" id="draft_hasPool" ${loc.hasPool ? 'checked' : ''} onchange="draftSite.hasPool=this.checked;renderSettings()"> Has pool</label>`;
+
+  if (loc.hasPool) {
+    html += `<div style="margin:10px 0;padding:10px;background:#f8f8fa;border-radius:8px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">Pool split mode</div>
+      <label style="display:block;margin:4px 0"><input type="radio" name="draft_poolMode" value="fifty" ${mode==='fifty'?'checked':''} onchange="draftSite.poolMode='fifty';renderSettings()"> 50/50 share on gross</label>
+      <label style="display:block;margin:4px 0"><input type="radio" name="draft_poolMode" value="rent" ${mode==='rent'?'checked':''} onchange="draftSite.poolMode='rent';renderSettings()"> Fixed £ rent (supplier)</label>
+      ${mode==='rent' ? `<label style="margin:4px 0 8px 22px">Rent £ <input type="number" min="0" step="1" style="width:100px" value="${loc.poolRent||0}" onchange="draftSite.poolRent=parseFloat(this.value)||0"></label>` : ''}
+      <label style="display:block;margin:4px 0"><input type="radio" name="draft_poolMode" value="percent" ${mode==='percent'?'checked':''} onchange="draftSite.poolMode='percent';renderSettings()"> Percentage of gross (supplier %)</label>
+      ${mode==='percent' ? `<label style="margin:4px 0 0 22px">Supplier % <input type="number" min="0" max="100" step="1" style="width:80px" value="${loc.poolPercent||50}" onchange="draftSite.poolPercent=parseFloat(this.value)||50"></label>` : ''}
+    </div>`;
+  }
+
+  html += `<h3 style="margin-top:12px">Categories</h3>
+    <p class="hint">Rate = cash-left share. Default float £ is a reference on daily entry (field starts empty). Pool never uses float.</p>`;
+
+  (loc.categories || []).forEach((cat, ci) => {
+    html += `<div class="cat-row">
+      <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="draftSite.categories[${ci}].name=this.value"></label>
+      <label>Rate (CL)<br><input type="number" min="0" max="1" step="0.01" value="${cat.rate}" onchange="draftSite.categories[${ci}].rate=parseFloat(this.value)||0.5"></label>
+      <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="draftSite.categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
+      <label>Default float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="draftSite.categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
+      <button class="btn btn-danger btn-sm" onclick="draftRemoveCategory(${ci})">×</button>
+    </div>`;
+  });
+
+  html += `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px">
+    <button class="btn btn-sm" onclick="draftAddCategory()">+ Category</button>
+    <button class="btn btn-primary" onclick="saveSiteFromDraft()">Save site</button>
+    <button class="btn btn-outline btn-sm" onclick="resetDraftForm();renderSettings()">Clear form</button>
+    <span class="msg" id="settingsMsg"></span>
+  </div></div>`;
+
+  document.getElementById('settingsContainer').innerHTML = html;
+  renderSavedSitesList();
+  renderMergeSites();
+}
+
+function renderSavedSitesList() {
+  const el = document.getElementById('savedSitesList');
+  if (!el) return;
+  if (!config.locations.length) {
+    el.innerHTML = '<div class="settings-card"><p class="hint" style="margin:0">No sites saved yet.</p></div>';
+    return;
+  }
+  let html = `<div class="settings-card"><h3 style="margin:0 0 10px">Saved sites</h3>`;
   config.locations.forEach((loc, li) => {
     const realHist = (loc.nameHistory || []).filter(n => n && !isPlaceholderSiteName(n) && n !== loc.name);
-    const histNote = realHist.length
-      ? `<p class="hint">Previously: ${esc(realHist.join(', '))}</p>`
-      : '';
-    const mode = loc.poolMode || 'fifty';
-    html += `<div class="settings-card" data-li="${li}">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <label style="flex:1">Site name<br><input type="text" value="${esc(loc.name)}" onchange="renameLocation(${li}, this.value)"></label>
-        <button class="btn btn-danger btn-sm" onclick="removeLocation(${li})">Remove site</button>
+    const hist = realHist.length ? ` <span style="color:#888;font-size:11px">(was ${esc(realHist.join(', '))})</span>` : '';
+    const cats = (loc.categories || []).map(c => c.name).join(', ') || '—';
+    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee">
+      <div>
+        <strong>${esc(loc.name || 'Unnamed')}</strong>${hist}<br>
+        <span style="font-size:12px;color:#888">${esc(cats)}${loc.hasPool ? ' · Pool (' + esc(poolModeLabel(loc)) + ')' : ''}</span>
       </div>
-      ${histNote}
-      <label style="margin-top:10px"><input type="checkbox" ${loc.hasPool ? 'checked' : ''} onchange="config.locations[${li}].hasPool=this.checked;renderSettings()"> Has pool</label>`;
-
-    if (loc.hasPool) {
-      html += `<div style="margin:10px 0;padding:10px;background:#f8f8fa;border-radius:8px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Pool split mode</div>
-        <label style="display:block;margin:4px 0"><input type="radio" name="poolMode_${li}" value="fifty" ${mode==='fifty'?'checked':''} onchange="setPoolMode(${li},'fifty')"> 50/50 share on gross</label>
-        <label style="display:block;margin:4px 0"><input type="radio" name="poolMode_${li}" value="rent" ${mode==='rent'?'checked':''} onchange="setPoolMode(${li},'rent')"> Fixed £ rent (supplier)</label>
-        ${mode==='rent' ? `<label style="margin:4px 0 8px 22px">Rent £ <input type="number" min="0" step="1" style="width:100px" value="${loc.poolRent||0}" onchange="config.locations[${li}].poolRent=parseFloat(this.value)||0"></label>` : ''}
-        <label style="display:block;margin:4px 0"><input type="radio" name="poolMode_${li}" value="percent" ${mode==='percent'?'checked':''} onchange="setPoolMode(${li},'percent')"> Percentage of gross (supplier %)</label>
-        ${mode==='percent' ? `<label style="margin:4px 0 0 22px">Supplier % <input type="number" min="0" max="100" step="1" style="width:80px" value="${loc.poolPercent||50}" onchange="config.locations[${li}].poolPercent=parseFloat(this.value)||50"></label>` : ''}
-      </div>`;
-    }
-
-    html += `<h3 style="margin-top:12px">Categories</h3>
-      <p class="hint">Rate = cash-left share. Default float £ is a reference on daily entry (field starts at 0). Pool never uses float.</p>`;
-
-    loc.categories.forEach((cat, ci) => {
-      html += `<div class="cat-row">
-        <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="config.locations[${li}].categories[${ci}].name=this.value"></label>
-        <label>Rate (CL)<br><input type="number" min="0" max="1" step="0.01" value="${cat.rate}" onchange="config.locations[${li}].categories[${ci}].rate=parseFloat(this.value)||0.5"></label>
-        <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="config.locations[${li}].categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
-        <label>Default float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="config.locations[${li}].categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
-        <button class="btn btn-danger btn-sm" onclick="removeCategory(${li},${ci})">×</button>
-      </div>`;
-    });
-    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px">
-      <button class="btn btn-sm" onclick="addCategory(${li})">+ Category</button>
-      <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save site</button>
-      <span class="msg" id="settingsMsg_${li}"></span>
-    </div></div>`;
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm" onclick="editSavedSite('${esc(loc.id)}')">Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="removeLocationById('${esc(loc.id)}')">Remove</button>
+      </div>
+    </div>`;
   });
-  if (!config.locations.length) {
-    html = '<div class="empty-state"><p>No sites yet. Click “Add Site”.</p></div>';
+  html += `</div>`;
+  el.innerHTML = html;
+}
+
+function draftAddCategory() {
+  ensureDraft();
+  draftSite.categories.push({ id: uid(), name: 'New', rate: 0.5, hasFloat: true, floatRequired: 0 });
+  renderSettings();
+}
+
+function draftRemoveCategory(ci) {
+  ensureDraft();
+  draftSite.categories.splice(ci, 1);
+  renderSettings();
+}
+
+function editSavedSite(id) {
+  const loc = config.locations.find(l => l.id === id);
+  if (!loc) return;
+  draftSite = JSON.parse(JSON.stringify(loc));
+  draftEditingId = loc.id;
+  renderSettings();
+  document.getElementById('siteDraftCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function removeLocationById(id) {
+  const loc = config.locations.find(l => l.id === id);
+  if (!loc) return;
+  if (!confirm('Remove site "' + loc.name + '" from config? (History on the sheet is kept.)')) return;
+  config.locations = config.locations.filter(l => l.id !== id);
+  saveConfigLocal();
+  saveConfigToSheet({ silent: true }).then(() => {
+    if (draftEditingId === id) resetDraftForm();
+    renderSettings();
+    renderForm();
+    render21DayTotals();
+  });
+}
+
+function readDraftFromDom() {
+  ensureDraft();
+  const nameEl = document.getElementById('draft_name');
+  if (nameEl) draftSite.name = nameEl.value.trim();
+  const poolCb = document.getElementById('draft_hasPool');
+  if (poolCb) draftSite.hasPool = poolCb.checked;
+  // categories already bound via onchange; re-read name/rate from inputs if present
+  const card = document.getElementById('siteDraftCard');
+  if (card) {
+    const rows = card.querySelectorAll('.cat-row');
+    rows.forEach((row, ci) => {
+      if (!draftSite.categories[ci]) return;
+      const inputs = row.querySelectorAll('input');
+      // name, rate, float?, default float
+      if (inputs[0]) draftSite.categories[ci].name = inputs[0].value.trim() || draftSite.categories[ci].name;
+      if (inputs[1]) draftSite.categories[ci].rate = parseFloat(inputs[1].value) || 0.5;
+      if (inputs[2]) draftSite.categories[ci].hasFloat = inputs[2].checked;
+      if (inputs[3] && !inputs[3].disabled) draftSite.categories[ci].floatRequired = parseFloat(inputs[3].value) || 0;
+    });
   }
-  container.innerHTML = html;
-  renderMergeSites();
+}
+
+async function saveSiteFromDraft() {
+  readDraftFromDom();
+  const name = (draftSite.name || '').trim();
+  if (!name || isPlaceholderSiteName(name)) {
+    showMsg('settingsMsg', 'Enter a site name', 'error');
+    return;
+  }
+  if (!draftSite.categories || !draftSite.categories.length) {
+    showMsg('settingsMsg', 'Add at least one category', 'error');
+    return;
+  }
+
+  draftSite.name = name;
+  draftSite = migrateConfig({ locations: [draftSite] }).locations[0];
+
+  if (draftEditingId) {
+    const idx = config.locations.findIndex(l => l.id === draftEditingId);
+    if (idx >= 0) {
+      const prev = config.locations[idx];
+      // preserve name history if renamed
+      if (prev.name && prev.name !== name && !isPlaceholderSiteName(prev.name)) {
+        if (!Array.isArray(draftSite.nameHistory)) draftSite.nameHistory = [];
+        if (!draftSite.nameHistory.includes(prev.name)) draftSite.nameHistory.unshift(prev.name);
+        (prev.nameHistory || []).forEach(n => {
+          if (n && n !== name && !draftSite.nameHistory.includes(n) && !isPlaceholderSiteName(n)) {
+            draftSite.nameHistory.push(n);
+          }
+        });
+        draftSite.nameHistory = draftSite.nameHistory.slice(0, 10);
+      } else {
+        draftSite.nameHistory = prev.nameHistory || [];
+      }
+      draftSite.id = prev.id;
+      config.locations[idx] = draftSite;
+    } else {
+      config.locations.push(draftSite);
+    }
+  } else {
+    // new site — avoid duplicate names silently stacking
+    if (config.locations.some(l => l.name === name)) {
+      if (!confirm('A site named "' + name + '" already exists. Add another anyway?')) return;
+    }
+    draftSite.id = draftSite.id || uid();
+    config.locations.push(JSON.parse(JSON.stringify(draftSite)));
+  }
+
+  config = migrateConfig(config);
+  saveConfigLocal();
+  const ok = await saveConfigToSheet();
+  showMsg('settingsMsg', ok ? 'Site saved — form cleared for next' : (!getApiUrl() ? 'Saved locally only' : 'Local OK; sheet sync failed'), ok ? 'success' : 'error');
+
+  // Clear form for next entry
+  resetDraftForm();
+  renderSettings();
+  renderForm();
+  render21DayTotals();
 }
 
 function renderMergeSites() {
@@ -1159,65 +1327,7 @@ function renderMergeSites() {
   </div>`;
 }
 
-function setPoolMode(li, mode) {
-  config.locations[li].poolMode = mode;
-  renderSettings();
-}
 
-function addLocation() {
-  config.locations.push({
-    id: uid(),
-    name: 'New Site',
-    nameHistory: [],
-    hasPool: false,
-    poolMode: 'fifty',
-    poolRent: 0,
-    poolPercent: 50,
-    categories: [
-      { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0 },
-      { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0 }
-    ]
-  });
-  renderSettings();
-}
-
-function removeLocation(li) {
-  if (!confirm('Remove site "' + config.locations[li].name + '" and its categories?')) return;
-  config.locations.splice(li, 1);
-  renderSettings();
-}
-
-function addCategory(li) {
-  config.locations[li].categories.push({
-    id: uid(), name: 'New', rate: 0.5, hasFloat: true, floatRequired: 0
-  });
-  renderSettings();
-}
-
-function removeCategory(li, ci) {
-  config.locations[li].categories.splice(ci, 1);
-  renderSettings();
-}
-
-async function saveSettings() {
-  config = migrateConfig(config);
-  saveConfigLocal();
-  const ok = await saveConfigToSheet();
-  const msg = ok
-    ? 'Site saved to sheet'
-    : (!getApiUrl() ? 'Saved locally only — set API URL' : 'Local OK; sheet sync failed');
-  const cls = ok ? 'msg success' : 'msg error';
-  document.querySelectorAll('[id^="settingsMsg"]').forEach(el => {
-    el.textContent = msg;
-    el.className = cls;
-    setTimeout(() => { el.className = 'msg'; el.textContent = ''; }, 4000);
-  });
-  const mergeEl = document.getElementById('mergeMsg');
-  if (mergeEl && !ok) { /* leave merge msg alone */ }
-  renderForm();
-  render21DayTotals();
-  renderMergeSites();
-}
 
 function locMatches(entryLoc, site) {
   if (!entryLoc || !site) return false;
@@ -1305,6 +1415,7 @@ async function mergeSites() {
       msgEl.textContent = 'Merged. Updated ' + updated + ' entr' + (updated === 1 ? 'y' : 'ies') + '.';
       msgEl.className = 'msg success';
     }
+    resetDraftForm();
     renderSettings();
     renderForm();
     render21DayTotals();
