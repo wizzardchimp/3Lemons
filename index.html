@@ -162,15 +162,12 @@ h3{font-size:14px;margin:0 0 8px}
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0 8px">
     <div>
       <h2 style="margin:0">Sites &amp; Rates</h2>
-      <p class="hint">Add, edit or remove locations. Float is per category (not pool).</p>
+      <p class="hint">Add, edit or remove locations. Use <strong>Save site</strong> on each card to sync to the sheet.</p>
     </div>
     <button class="btn btn-primary" onclick="addLocation()">+ Add Site</button>
   </div>
   <div id="settingsContainer"></div>
-  <div style="margin:16px 0">
-    <button class="btn btn-primary" onclick="saveSettings()">Save Changes</button>
-    <span id="settingsMsg" class="msg"></span>
-  </div>
+  <div id="mergeSitesContainer"></div>
 </div>
 
 <div id="monthModal" class="modal-overlay" onclick="if(event.target===this)closeMonthModal()">
@@ -1128,12 +1125,38 @@ function renderSettings() {
         <button class="btn btn-danger btn-sm" onclick="removeCategory(${li},${ci})">×</button>
       </div>`;
     });
-    html += `<button class="btn btn-sm" style="margin-top:6px" onclick="addCategory(${li})">+ Category</button></div>`;
+    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px">
+      <button class="btn btn-sm" onclick="addCategory(${li})">+ Category</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save site</button>
+      <span class="msg" id="settingsMsg_${li}"></span>
+    </div></div>`;
   });
   if (!config.locations.length) {
     html = '<div class="empty-state"><p>No sites yet. Click “Add Site”.</p></div>';
   }
   container.innerHTML = html;
+  renderMergeSites();
+}
+
+function renderMergeSites() {
+  const el = document.getElementById('mergeSitesContainer');
+  if (!el) return;
+  if (config.locations.length < 2) {
+    el.innerHTML = '';
+    return;
+  }
+  let opts = '';
+  config.locations.forEach((loc, i) => {
+    opts += `<label style="display:block;margin:6px 0"><input type="radio" name="mergeKeep" value="${esc(loc.id)}"> Keep <strong>${esc(loc.name)}</strong> <span style="color:#888;font-size:11px">(${esc(loc.id)})</span></label>`;
+    opts += `<label style="display:block;margin:2px 0 10px 18px"><input type="radio" name="mergeFrom" value="${esc(loc.id)}"> Merge from this into Keep</label>`;
+  });
+  el.innerHTML = `<div class="settings-card" style="margin-top:16px">
+    <h2>Merge sites</h2>
+    <p class="hint">Permanently move all history from one site into another (updates the Google Sheet). The merged-away site is removed from Settings; its name is kept under “Previously”.</p>
+    ${opts}
+    <button class="btn btn-primary" style="margin-top:8px" onclick="mergeSites()">Merge permanently</button>
+    <span id="mergeMsg" class="msg"></span>
+  </div>`;
 }
 
 function setPoolMode(li, mode) {
@@ -1177,24 +1200,118 @@ function removeCategory(li, ci) {
 }
 
 async function saveSettings() {
-  // sanitize
   config = migrateConfig(config);
   saveConfigLocal();
   const ok = await saveConfigToSheet();
-  const el = document.getElementById('settingsMsg');
-  if (ok) {
-    el.textContent = 'Saved to Google Sheet';
-    el.className = 'msg success';
-  } else if (!getApiUrl()) {
-    el.textContent = 'Saved locally only — set API URL';
-    el.className = 'msg error';
-  } else {
-    el.textContent = 'Local save OK; sheet sync failed — redeploy Code.gs?';
-    el.className = 'msg error';
-  }
-  setTimeout(() => el.className = 'msg', 4000);
+  const msg = ok
+    ? 'Site saved to sheet'
+    : (!getApiUrl() ? 'Saved locally only — set API URL' : 'Local OK; sheet sync failed');
+  const cls = ok ? 'msg success' : 'msg error';
+  document.querySelectorAll('[id^="settingsMsg"]').forEach(el => {
+    el.textContent = msg;
+    el.className = cls;
+    setTimeout(() => { el.className = 'msg'; el.textContent = ''; }, 4000);
+  });
+  const mergeEl = document.getElementById('mergeMsg');
+  if (mergeEl && !ok) { /* leave merge msg alone */ }
   renderForm();
   render21DayTotals();
+  renderMergeSites();
+}
+
+function locMatches(entryLoc, site) {
+  if (!entryLoc || !site) return false;
+  if (entryLoc.id && site.id && entryLoc.id === site.id) return true;
+  if (entryLoc.name === site.name) return true;
+  if ((site.nameHistory || []).includes(entryLoc.name)) return true;
+  return false;
+}
+
+async function updateEntryOnSheet(entry) {
+  const url = getApiUrl();
+  if (!url) return false;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'updateEntry', entry })
+    });
+    const result = await r.json();
+    return !!result.success;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
+async function mergeSites() {
+  const keepId = document.querySelector('input[name="mergeKeep"]:checked')?.value;
+  const fromId = document.querySelector('input[name="mergeFrom"]:checked')?.value;
+  const msgEl = document.getElementById('mergeMsg');
+  if (!keepId || !fromId) {
+    if (msgEl) { msgEl.textContent = 'Select Keep and Merge from'; msgEl.className = 'msg error'; }
+    return;
+  }
+  if (keepId === fromId) {
+    if (msgEl) { msgEl.textContent = 'Keep and Merge from must be different sites'; msgEl.className = 'msg error'; }
+    return;
+  }
+  const keep = config.locations.find(l => l.id === keepId);
+  const from = config.locations.find(l => l.id === fromId);
+  if (!keep || !from) return;
+
+  if (!confirm('Merge all history from "' + from.name + '" into "' + keep.name + '"?\n\nThis rewrites entries on the Google Sheet and removes "' + from.name + '" from Settings.')) return;
+
+  showLoading('Merging sites…');
+  try {
+    // name history
+    if (!Array.isArray(keep.nameHistory)) keep.nameHistory = [];
+    if (from.name && !isPlaceholderSiteName(from.name) && from.name !== keep.name && !keep.nameHistory.includes(from.name)) {
+      keep.nameHistory.unshift(from.name);
+    }
+    (from.nameHistory || []).forEach(n => {
+      if (n && !isPlaceholderSiteName(n) && n !== keep.name && !keep.nameHistory.includes(n)) keep.nameHistory.push(n);
+    });
+    keep.nameHistory = keep.nameHistory.slice(0, 10);
+
+    // rewrite entries in memory + sheet
+    let updated = 0;
+    for (const e of cachedEntries) {
+      let changed = false;
+      for (const loc of e.locations || []) {
+        if (locMatches(loc, from)) {
+          loc.id = keep.id;
+          loc.name = keep.name;
+          changed = true;
+        }
+      }
+      if (changed) {
+        const ok = await updateEntryOnSheet(e);
+        if (ok) updated++;
+        else {
+          // still keep local rewrite
+          updated++;
+        }
+      }
+    }
+
+    // remove from site from config
+    config.locations = config.locations.filter(l => l.id !== from.id);
+    config = migrateConfig(config);
+    saveConfigLocal();
+    await saveConfigToSheet({ silent: true });
+
+    if (msgEl) {
+      msgEl.textContent = 'Merged. Updated ' + updated + ' entr' + (updated === 1 ? 'y' : 'ies') + '.';
+      msgEl.className = 'msg success';
+    }
+    renderSettings();
+    renderForm();
+    render21DayTotals();
+    updateHistoryCount();
+  } finally {
+    hideLoading();
+  }
 }
 
 function saveApiUrl() {

@@ -194,6 +194,61 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (body.action === 'updateEntry') {
+      const entry = body.entry;
+      if (!entry) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'No entry' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      const targetId = entry.id ? String(entry.id) : '';
+      const targetTs = entry.timestamp ? String(entry.timestamp) : '';
+      const date = normalizeDate(entry.date);
+      const ss = getSpreadsheet();
+      const skip = {};
+      skip[LOG_SHEET_NAME] = true;
+      skip[RATES_SHEET_NAME] = true;
+      const sheets = ss.getSheets();
+      for (let s = 0; s < sheets.length; s++) {
+        const sheet = sheets[s];
+        if (skip[sheet.getName()]) continue;
+        const data = sheet.getDataRange().getValues();
+        const display = sheet.getDataRange().getDisplayValues();
+        for (let i = 1; i < data.length; i++) {
+          let rowEntry = null;
+          if (data[i].length > 2) {
+            rowEntry = tryParseEntry(data[i][2]) || tryParseEntry(display[i][2]);
+          }
+          if (!rowEntry) {
+            for (let c = 0; c < data[i].length; c++) {
+              rowEntry = tryParseEntry(data[i][c]) || tryParseEntry(display[i][c]);
+              if (rowEntry) break;
+            }
+          }
+          if (!rowEntry) continue;
+          const rowId = rowEntry.id ? String(rowEntry.id) : '';
+          const rowTs = rowEntry.timestamp ? String(rowEntry.timestamp) : String(data[i][1] || '');
+          let match = false;
+          if (targetId && rowId && rowId === targetId) match = true;
+          else if (targetTs && rowTs && rowTs === targetTs) match = true;
+          if (match) {
+            const rest = {};
+            for (const k in entry) {
+              if (k !== 'date') rest[k] = entry[k];
+            }
+            if (!rest.id) rest.id = targetId || targetTs;
+            if (!rest.timestamp) rest.timestamp = targetTs || new Date().toISOString();
+            sheet.getRange(i + 1, 1).setValue(date);
+            sheet.getRange(i + 1, 2).setValue(rest.timestamp);
+            sheet.getRange(i + 1, 3).setValue(JSON.stringify(rest));
+            return ContentService.createTextOutput(JSON.stringify({ success: true }))
+              .setMimeType(ContentService.MimeType.JSON);
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Not found' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (body.action === 'delete') {
       const targetId = body.id ? String(body.id) : '';
       const targetTs = body.timestamp ? String(body.timestamp) : '';
