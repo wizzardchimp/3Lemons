@@ -1080,7 +1080,7 @@ function showMonthlySummary() {
     <th>Month</th><th class="num">Collections</th><th class="num">Net</th><th class="num">Supplier</th><th class="num">Cash Left</th><th class="num">Float</th><th></th>
   </tr></thead><tbody>`;
   for (const [m, v] of Object.entries(monthlyMap).sort()) {
-    html += `<tr><td>${m}</td><td>${v.count}</td><td class="ro">£${v.grand.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td><td class="ro">£${v.float.toFixed(2)}</td>
+    html += `<tr><td>${m}</td><td class="ro">${v.count}</td><td class="ro">£${v.grand.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td><td class="ro">£${v.float.toFixed(2)}</td>
       <td><button class="btn btn-sm" onclick="viewMonth('${m}')">View</button></td></tr>`;
   }
   html += '</tbody></table></div></div>';
