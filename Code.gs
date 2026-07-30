@@ -1,12 +1,22 @@
 // 3Lemons — Google Apps Script backend
-// Tabs: Data (entries), Rates (config), LoginLog
+// Tabs: Data (entries), Rates (config), LoginLog, MasterLog (append-only audit)
 const SHEET_NAME = 'Data';
 const SHEET_FALLBACKS = ['Sheet1', 'Entries'];
 const LOG_SHEET_NAME = 'LoginLog';
 const RATES_SHEET_NAME = 'Rates';
+const MASTER_SHEET_NAME = 'MasterLog';
+
+const META_SHEETS = {};
+META_SHEETS[LOG_SHEET_NAME] = true;
+META_SHEETS[RATES_SHEET_NAME] = true;
+META_SHEETS[MASTER_SHEET_NAME] = true;
 
 function getSpreadsheet() {
   return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function isMetaSheetName(name) {
+  return !!META_SHEETS[name];
 }
 
 function getSheet() {
@@ -43,6 +53,107 @@ function getRatesSheet() {
     sheet.appendRow(['ConfigJSON']);
   }
   return sheet;
+}
+
+function getMasterLogSheet() {
+  const ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(MASTER_SHEET_NAME);
+    sheet.appendRow([
+      'Date',
+      'Submitted',
+      'Entry ID',
+      'Site',
+      'Category',
+      'Gross',
+      'Float req',
+      'Float taken',
+      'Net',
+      'MGD',
+      'Supplier',
+      'Cash Left'
+    ]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * Append-only audit rows for one submission.
+ * Never updated/deleted by clear/delete/merge.
+ */
+function appendMasterLog(entry) {
+  if (!entry || !entry.locations) return 0;
+  const sheet = getMasterLogSheet();
+  const date = normalizeDate(entry.date);
+  const ts = entry.timestamp || new Date().toISOString();
+  const entryId = entry.id || ts;
+  let n = 0;
+
+  for (let i = 0; i < entry.locations.length; i++) {
+    const loc = entry.locations[i] || {};
+    const site = loc.name || '';
+    const cats = loc.categories || [];
+    for (let c = 0; c < cats.length; c++) {
+      const cat = cats[c] || {};
+      const gross = cat.gross != null ? cat.gross : (cat.cash != null ? cat.cash : 0);
+      const floatReq = cat.floatRequired != null ? cat.floatRequired : 0;
+      const floatTaken = cat.floatTaken != null ? cat.floatTaken : 0;
+      const net = cat.net != null ? cat.net : (cat.total != null ? cat.total : gross);
+      sheet.appendRow([
+        date,
+        ts,
+        entryId,
+        site,
+        cat.name || '',
+        gross,
+        floatReq,
+        floatTaken,
+        net,
+        cat.mgd != null ? cat.mgd : 0,
+        cat.supplierShare != null ? cat.supplierShare : 0,
+        cat.cashLeft != null ? cat.cashLeft : 0
+      ]);
+      n++;
+    }
+    if (loc.poolGross != null && loc.poolGross !== '') {
+      const pg = parseFloat(loc.poolGross) || 0;
+      // Always log pool row when present (including 0) only if has explicit pool fields
+      if (loc.poolSS != null || loc.poolCL != null || pg > 0) {
+        sheet.appendRow([
+          date,
+          ts,
+          entryId,
+          site,
+          'Pool',
+          pg,
+          '',
+          '',
+          pg,
+          0,
+          loc.poolSS != null ? loc.poolSS : 0,
+          loc.poolCL != null ? loc.poolCL : 0
+        ]);
+        n++;
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * Optional: run once from Apps Script editor to copy existing Data entries into MasterLog.
+ * Safe to re-run only if MasterLog is empty — does not de-dupe.
+ */
+function backfillMasterLogFromData() {
+  const entries = readEntries();
+  let total = 0;
+  for (let i = 0; i < entries.length; i++) {
+    total += appendMasterLog(entries[i]);
+  }
+  Logger.log('MasterLog backfill wrote ' + total + ' row(s) from ' + entries.length + ' entr(y/ies)');
+  return { success: true, rows: total, entries: entries.length };
 }
 
 function readConfig() {
@@ -152,13 +263,10 @@ function readEntries() {
     if (r.entries.length > best.length) best = r.entries;
   }
   if (!best.length) {
-    const skip = {};
-    skip[LOG_SHEET_NAME] = true;
-    skip[RATES_SHEET_NAME] = true;
     const sheets = ss.getSheets();
     for (let i = 0; i < sheets.length; i++) {
       const s = sheets[i];
-      if (skip[s.getName()]) continue;
+      if (isMetaSheetName(s.getName())) continue;
       const r = readEntriesFromSheet(s);
       if (r.entries.length > best.length) best = r.entries;
     }
@@ -204,13 +312,10 @@ function doPost(e) {
       const targetTs = entry.timestamp ? String(entry.timestamp) : '';
       const date = normalizeDate(entry.date);
       const ss = getSpreadsheet();
-      const skip = {};
-      skip[LOG_SHEET_NAME] = true;
-      skip[RATES_SHEET_NAME] = true;
       const sheets = ss.getSheets();
       for (let s = 0; s < sheets.length; s++) {
         const sheet = sheets[s];
-        if (skip[sheet.getName()]) continue;
+        if (isMetaSheetName(sheet.getName())) continue;
         const data = sheet.getDataRange().getValues();
         const display = sheet.getDataRange().getDisplayValues();
         for (let i = 1; i < data.length; i++) {
@@ -240,6 +345,7 @@ function doPost(e) {
             sheet.getRange(i + 1, 1).setValue(date);
             sheet.getRange(i + 1, 2).setValue(rest.timestamp);
             sheet.getRange(i + 1, 3).setValue(JSON.stringify(rest));
+            // Do NOT write MasterLog on merge/update — audit is submit-only
             return ContentService.createTextOutput(JSON.stringify({ success: true }))
               .setMimeType(ContentService.MimeType.JSON);
           }
@@ -254,13 +360,10 @@ function doPost(e) {
       const targetTs = body.timestamp ? String(body.timestamp) : '';
       const targetDate = body.date ? normalizeDate(body.date) : '';
       const ss = getSpreadsheet();
-      const skip = {};
-      skip[LOG_SHEET_NAME] = true;
-      skip[RATES_SHEET_NAME] = true;
       const sheets = ss.getSheets();
       for (let s = 0; s < sheets.length; s++) {
         const sheet = sheets[s];
-        if (skip[sheet.getName()]) continue;
+        if (isMetaSheetName(sheet.getName())) continue;
         const data = sheet.getDataRange().getValues();
         const display = sheet.getDataRange().getDisplayValues();
         for (let i = data.length - 1; i >= 1; i--) {
@@ -318,9 +421,24 @@ function doPost(e) {
     }
     rest.timestamp = ts;
     rest.id = id;
+    rest.date = date;
     sheet.appendRow([date, ts, JSON.stringify(rest)]);
-    return ContentService.createTextOutput(JSON.stringify({ success: true, id: id, timestamp: ts }))
-      .setMimeType(ContentService.MimeType.JSON);
+
+    // Permanent append-only audit log (survives delete/clear/merge)
+    let masterRows = 0;
+    try {
+      masterRows = appendMasterLog(rest);
+    } catch (logErr) {
+      // Don't fail the save if audit log has an issue
+      masterRows = -1;
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      id: id,
+      timestamp: ts,
+      masterLogRows: masterRows
+    })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))

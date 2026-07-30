@@ -16,9 +16,12 @@ After Pages is enabled: `https://wizzardchimp.github.io/3Lemons/`
 
 ### 1. Google Sheet
 Create a spreadsheet with tabs (or let the script create them):
-- **Data** — Date | Timestamp | JSON  
+- **Data** — Date | Timestamp | JSON (live working copy; can delete/edit)  
 - **Rates** — ConfigJSON  
 - **LoginLog** — optional  
+- **MasterLog** — append-only audit of every submit (Date, Site, Category, Gross, Float, Net, …). Not cleared when Data is deleted.  
+
+Optional backfill of old Data rows: in Apps Script, run function `backfillMasterLogFromData` once.
 
 ### 2. Apps Script
 1. Extensions → Apps Script  
