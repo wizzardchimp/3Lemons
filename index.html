@@ -68,6 +68,11 @@ h3{font-size:14px;margin:0 0 8px}
 .loading-spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#f7b731;border-radius:50%;animation:spin .75s linear infinite}
 .loading-text{color:#fff;font-size:14px;font-weight:600}
 @keyframes spin{to{transform:rotate(360deg)}}
+.alert-overlay{display:none;position:fixed;inset:0;background:rgba(26,26,46,.65);z-index:9500;justify-content:center;align-items:center;padding:20px}
+.alert-overlay.active{display:flex}
+.alert-box{background:#fff;border-radius:14px;padding:24px 22px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35);text-align:center}
+.alert-box h3{margin:0 0 10px;font-size:18px;color:#c0392b}
+.alert-box p{margin:0 0 18px;font-size:14px;color:#444;line-height:1.45}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:flex-start;overflow-y:auto;padding:20px}
 .modal-overlay.active{display:flex}
 .modal-box{background:#f5f5f5;border-radius:12px;padding:20px;max-width:700px;width:100%;margin:20px auto;box-shadow:0 8px 32px rgba(0,0,0,.3);position:relative}
@@ -173,6 +178,14 @@ h3{font-size:14px;margin:0 0 8px}
     <button class="modal-close" onclick="closeMonthModal()">&times;</button>
     <h2 id="monthModalTitle"></h2>
     <div id="monthModalEntries"></div>
+  </div>
+</div>
+
+<div id="alertOverlay" class="alert-overlay" onclick="if(event.target===this)closeAppAlert()">
+  <div class="alert-box">
+    <h3 id="alertTitle">Connection error</h3>
+    <p id="alertBody">Could not reach the API.</p>
+    <button type="button" class="btn btn-primary" style="min-width:120px" onclick="closeAppAlert()">OK</button>
   </div>
 </div>
 
@@ -328,34 +341,95 @@ function hideLoading() {
   if (el) { el.classList.remove('active'); el.setAttribute('aria-busy', 'false'); }
 }
 
+function showAppAlert(title, message) {
+  const ov = document.getElementById('alertOverlay');
+  const t = document.getElementById('alertTitle');
+  const b = document.getElementById('alertBody');
+  if (t) t.textContent = title || 'Error';
+  if (b) b.textContent = message || '';
+  if (ov) ov.classList.add('active');
+}
+
+function closeAppAlert() {
+  document.getElementById('alertOverlay')?.classList.remove('active');
+}
+
+/** Go to Settings and show a blocking error when API is missing/unreachable */
+function failToSettings(message) {
+  cachedEntries = [];
+  entriesLoaded = true;
+  showPage('settings');
+  renderSettings();
+  showAppAlert('API connection failed', message);
+  const apiMsg = document.getElementById('apiUrlMsg');
+  if (apiMsg) {
+    apiMsg.textContent = message;
+    apiMsg.className = 'msg error';
+  }
+}
+
 async function loadEntries() {
   const url = getApiUrl();
-  if (!url) { cachedEntries = []; entriesLoaded = true; return []; }
+  if (!url) {
+    cachedEntries = [];
+    entriesLoaded = true;
+    return { ok: false, error: 'No API URL saved. Paste your Apps Script web app URL below and save it.' };
+  }
   showLoading('Loading data…');
   try {
-    const r = await fetch(url);
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), 20000) : null;
+    const r = await fetch(url, ctrl ? { signal: ctrl.signal } : undefined);
+    if (timer) clearTimeout(timer);
+    if (!r.ok) {
+      cachedEntries = [];
+      entriesLoaded = true;
+      return { ok: false, error: 'API responded with HTTP ' + r.status + '. Check the deployment (Who has access: Anyone) and URL.' };
+    }
     const data = await r.json();
     if (Array.isArray(data)) {
       cachedEntries = data;
-    } else {
+    } else if (data && typeof data === 'object') {
       cachedEntries = data.entries || [];
       if (data.config) {
         applyRemoteConfig(data.config);
-      } else if (config) {
+      } else if (config && config.locations && config.locations.length) {
         await saveConfigToSheet({ silent: true });
       }
+    } else {
+      cachedEntries = [];
+      entriesLoaded = true;
+      return { ok: false, error: 'API returned unexpected data. Redeploy Code.gs and confirm the URL ends with /exec.' };
     }
     migrateEntries();
     entriesLoaded = true;
-    return cachedEntries;
+    return { ok: true, entries: cachedEntries };
   } catch (e) {
     console.error(e);
     cachedEntries = [];
     entriesLoaded = true;
-    return [];
+    const aborted = e && (e.name === 'AbortError' || String(e.message || '').includes('abort'));
+    return {
+      ok: false,
+      error: aborted
+        ? 'API timed out. Check your connection and that the Apps Script web app is deployed.'
+        : 'Could not reach the API. Check the URL, deployment access (Anyone), and your network.'
+    };
   } finally {
     hideLoading();
   }
+}
+
+async function bootApp() {
+  const result = await loadEntries();
+  if (!result || !result.ok) {
+    failToSettings((result && result.error) || 'Could not connect to the API.');
+    return false;
+  }
+  updateHistoryCount();
+  renderForm();
+  render21DayTotals();
+  return true;
 }
 
 function migrateEntries() {
@@ -1463,15 +1537,25 @@ async function mergeSites() {
   }
 }
 
-function saveApiUrl() {
+async function saveApiUrl() {
   const url = document.getElementById('apiUrlInput').value.trim();
+  if (!url) {
+    showMsg('apiUrlMsg', 'Paste an API URL first', 'error');
+    showAppAlert('API URL required', 'Paste your Apps Script web app URL, then save again.');
+    return;
+  }
   setApiUrl(url);
-  showMsg('apiUrlMsg', 'API URL saved', 'success');
-  loadEntries().then(() => {
-    updateHistoryCount();
-    renderForm();
-    render21DayTotals();
-  });
+  showMsg('apiUrlMsg', 'Testing connection…', 'success');
+  const result = await loadEntries();
+  if (!result || !result.ok) {
+    failToSettings((result && result.error) || 'Could not connect to the API.');
+    return;
+  }
+  showMsg('apiUrlMsg', 'API connected — data loaded', 'success');
+  updateHistoryCount();
+  renderForm();
+  render21DayTotals();
+  showPage('entry');
 }
 
 // ===== EXPORT =====
@@ -1518,7 +1602,7 @@ function showPage(name) {
   if (name === 'entry') { renderForm(); render21DayTotals(); }
 }
 
-function doLogin() {
+async function doLogin() {
   const pwd = document.getElementById('loginPwd').value;
   if (pwd !== APP_PASSWORD) {
     document.getElementById('loginError').style.display = 'block';
@@ -1527,6 +1611,10 @@ function doLogin() {
   document.getElementById('loginError').style.display = 'none';
   document.getElementById('loginOverlay').classList.add('hidden');
   sessionStorage.setItem('3l_logged_in', '1');
+
+  const ok = await bootApp();
+  if (!ok) return;
+
   const url = getApiUrl();
   if (url) {
     fetch(url, {
@@ -1539,12 +1627,18 @@ function doLogin() {
 
 // ===== INIT =====
 loadConfigLocal();
-renderForm();
-loadEntries().then(() => {
-  updateHistoryCount();
-  renderForm();
-  render21DayTotals();
-});
+
+async function startApp() {
+  // Always verify API before using the app (except bare settings if already open)
+  const loggedIn = !!sessionStorage.getItem('3l_logged_in');
+  if (!loggedIn) {
+    // Stay on login; after login bootApp runs
+    return;
+  }
+  await bootApp();
+}
+
+startApp();
 
 // Recalc float carry when date changes
 document.getElementById('entryDate').addEventListener('change', () => {
