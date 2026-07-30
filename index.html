@@ -47,7 +47,8 @@ h3{font-size:14px;margin:0 0 8px}
   padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:2px;max-width:100%
 }
 .settings-card input[type=checkbox]{margin-right:6px;transform:scale(1.15)}
-.cat-row{display:grid;grid-template-columns:1fr 90px 70px 90px auto;gap:8px;align-items:end;margin:8px 0;padding:8px;background:#f8f8fa;border-radius:8px}
+.cat-row{display:grid;grid-template-columns:1fr 90px 70px 110px auto;gap:8px;align-items:end;margin:8px 0;padding:8px;background:#f8f8fa;border-radius:8px}
+.entry-table input[type=number]{width:100%;max-width:100px}
 .cat-row label{margin:0;font-size:11px;color:#666}
 .cat-row input{width:100%;margin:0}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
@@ -190,7 +191,8 @@ function uid() {
 const DEFAULT_CONFIG = {
   locations: [
     {
-      id: uid(), name: 'Site A', hasPool: false, poolRent: 0,
+      id: uid(), name: 'Site A', nameHistory: [], hasPool: false,
+      poolMode: 'fifty', poolRent: 0, poolPercent: 50,
       categories: [
         { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0 },
         { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0 }
@@ -227,6 +229,14 @@ function migrateConfig(cfg) {
     loc.id = loc.id || uid();
     loc.hasPool = !!loc.hasPool;
     loc.poolRent = parseFloat(loc.poolRent) || 0;
+    loc.poolPercent = parseFloat(loc.poolPercent);
+    if (isNaN(loc.poolPercent)) loc.poolPercent = 50;
+    // poolMode: fifty | rent | percent
+    if (!loc.poolMode || !['fifty', 'rent', 'percent'].includes(loc.poolMode)) {
+      loc.poolMode = loc.poolRent > 0 ? 'rent' : 'fifty';
+    }
+    if (!Array.isArray(loc.nameHistory)) loc.nameHistory = [];
+    loc.nameHistory = loc.nameHistory.filter(n => n && n !== loc.name).slice(0, 10);
     if (!Array.isArray(loc.categories)) loc.categories = [];
     loc.categories.forEach(c => {
       c.id = c.id || uid();
@@ -237,6 +247,48 @@ function migrateConfig(cfg) {
     });
   });
   return cfg;
+}
+
+/** Display name with legacy aliases from config */
+function formatSiteName(locOrName, locId) {
+  let cfg = null;
+  if (locId) cfg = config.locations.find(l => l.id === locId);
+  if (!cfg && locOrName && typeof locOrName === 'object') {
+    cfg = config.locations.find(l => l.id === locOrName.id) ||
+          config.locations.find(l => l.name === locOrName.name);
+  }
+  if (!cfg && typeof locOrName === 'string') {
+    cfg = config.locations.find(l => l.name === locOrName || (l.nameHistory || []).includes(locOrName));
+  }
+  const current = cfg ? cfg.name : (typeof locOrName === 'object' ? locOrName.name : locOrName) || '—';
+  const hist = cfg && cfg.nameHistory && cfg.nameHistory.length
+    ? cfg.nameHistory.filter(n => n && n !== current)
+    : [];
+  if (!hist.length) return current;
+  return current + ' (was ' + hist.join(', ') + ')';
+}
+
+function renameLocation(li, newName) {
+  const loc = config.locations[li];
+  if (!loc) return;
+  newName = String(newName || '').trim();
+  if (!newName || newName === loc.name) {
+    loc.name = newName || loc.name;
+    return;
+  }
+  if (!Array.isArray(loc.nameHistory)) loc.nameHistory = [];
+  if (loc.name && !loc.nameHistory.includes(loc.name)) {
+    loc.nameHistory.unshift(loc.name);
+  }
+  loc.nameHistory = loc.nameHistory.filter(n => n && n !== newName).slice(0, 10);
+  loc.name = newName;
+}
+
+function poolModeLabel(loc) {
+  if (!loc.hasPool) return '';
+  if (loc.poolMode === 'rent') return 'Rent £' + (loc.poolRent || 0);
+  if (loc.poolMode === 'percent') return (loc.poolPercent || 0) + '% supplier';
+  return '50/50';
 }
 
 function saveConfigLocal() {
@@ -438,18 +490,25 @@ function calcCategory(gross, rate, hasFloat, floatRequired, floatOwedIn) {
   };
 }
 
-function calcPool(poolGross, poolRent) {
+function calcPool(poolGross, loc) {
   const g = parseFloat(poolGross) || 0;
-  const rent = parseFloat(poolRent) || 0;
+  const mode = (loc && loc.poolMode) || (loc && loc.poolRent > 0 ? 'rent' : 'fifty');
   let poolSS, poolCL;
-  if (rent > 0) {
+  if (mode === 'rent') {
+    const rent = parseFloat(loc.poolRent) || 0;
     poolSS = Math.min(rent, g);
+    poolCL = g - poolSS;
+  } else if (mode === 'percent') {
+    let pct = parseFloat(loc.poolPercent);
+    if (isNaN(pct)) pct = 50;
+    pct = Math.max(0, Math.min(100, pct));
+    poolSS = g * (pct / 100);
     poolCL = g - poolSS;
   } else {
     poolSS = g * 0.5;
     poolCL = g * 0.5;
   }
-  return { poolGross: round(g), poolSS: round(poolSS), poolCL: round(poolCL) };
+  return { poolGross: round(g), poolSS: round(poolSS), poolCL: round(poolCL), poolMode: mode };
 }
 
 /** Outstanding float owed for locationId+categoryId before a given date/timestamp */
@@ -497,22 +556,24 @@ function renderForm() {
   let html = '';
   for (const loc of config.locations) {
     html += `<div class="table-scroll"><table class="tbl entry-table"><thead>
-      <tr class="loc-header-row"><th colspan="5" class="loc-header">${esc(loc.name)}</th></tr>
-      <tr><th>Category</th><th>Gross (£)</th><th>Float</th><th>Net</th><th>Split</th></tr>
+      <tr class="loc-header-row"><th colspan="6" class="loc-header">${esc(formatSiteName(loc))}</th></tr>
+      <tr><th>Category</th><th>Gross (£)</th><th>Float req (£)</th><th>Taken / carry</th><th>Net</th><th>Split</th></tr>
     </thead><tbody>`;
 
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
       const owed = getFloatOwedIn(loc.id, cat.id, date, null);
-      const floatNote = cat.hasFloat
-        ? (owed > 0
-          ? `<span class="float-owed">Owed £${owed.toFixed(2)} + req £${(cat.floatRequired||0).toFixed(2)}</span>`
-          : `<span style="font-size:10px;color:#888">Req £${(cat.floatRequired||0).toFixed(2)}</span>`)
-        : '<span style="font-size:10px;color:#bbb">—</span>';
+      const defFloat = cat.hasFloat ? (cat.floatRequired || 0) : 0;
+      const owedHint = owed > 0
+        ? `<br><span class="float-owed">+ £${owed.toFixed(2)} owed from prior</span>`
+        : '';
       html += `<tr>
         <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${(cat.rate*100).toFixed(0)}/${((1-cat.rate)*100).toFixed(0)}</span></td>
         <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
-        <td id="float_${fid}">${floatNote}</td>
+        <td>${cat.hasFloat
+          ? `<input type="number" step="any" min="0" id="floatreq_${fid}" value="${defFloat}" oninput="updateFormCalcs()" placeholder="0">${owedHint}`
+          : '<span style="font-size:10px;color:#bbb">—</span>'}</td>
+        <td style="font-size:11px" id="float_${fid}">—</td>
         <td class="ro net-val" id="net_${fid}">0.00</td>
         <td style="font-size:11px" id="split_${fid}">—</td>
       </tr>`;
@@ -521,15 +582,16 @@ function renderForm() {
     if (loc.hasPool) {
       const lid = loc.id;
       html += `<tr>
-        <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${loc.poolRent > 0 ? 'Rent £'+loc.poolRent : '50/50'}</span></td>
+        <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
         <td><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
         <td style="font-size:10px;color:#bbb">n/a</td>
+        <td style="font-size:10px;color:#bbb">—</td>
         <td class="ro" id="pool_net_${lid}">0.00</td>
         <td style="font-size:11px" id="pool_split_${lid}">—</td>
       </tr>`;
     }
 
-    html += `</tbody><tfoot><tr><td colspan="5" class="loc-summary"><div class="loc-summary-inner">
+    html += `</tbody><tfoot><tr><td colspan="6" class="loc-summary"><div class="loc-summary-inner">
       <span><span class="ls-lbl">Net:</span> <span id="loc_net_${loc.id}">0.00</span></span>
       <span><span class="ls-lbl">MGD:</span> <span id="loc_mgd_${loc.id}">0.00</span></span>
       <span><span class="ls-lbl">Supp:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
@@ -573,8 +635,12 @@ function updateFormCalcs() {
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
       const gross = parseFloat(document.getElementById('gross_' + fid)?.value) || 0;
+      const floatReqEl = document.getElementById('floatreq_' + fid);
+      const floatReq = cat.hasFloat
+        ? (parseFloat(floatReqEl?.value) || 0)
+        : 0;
       const owed = getFloatOwedIn(loc.id, cat.id, date, null);
-      const r = calcCategory(gross, cat.rate, cat.hasFloat, cat.floatRequired, owed);
+      const r = calcCategory(gross, cat.rate, cat.hasFloat, floatReq, owed);
 
       const netEl = document.getElementById('net_' + fid);
       const splitEl = document.getElementById('split_' + fid);
@@ -582,9 +648,8 @@ function updateFormCalcs() {
       if (netEl) netEl.textContent = r.net.toFixed(2);
       if (splitEl) splitEl.innerHTML = `MGD £${r.mgd.toFixed(2)}<br>SS £${r.supplierShare.toFixed(2)}<br>CL £${r.cashLeft.toFixed(2)}`;
       if (floatEl && cat.hasFloat) {
-        floatEl.innerHTML = r.floatTaken > 0 || owed > 0
-          ? `−£${r.floatTaken.toFixed(2)}` + (r.floatOwedAfter > 0 ? `<br><span class="float-owed">carry £${r.floatOwedAfter.toFixed(2)}</span>` : '')
-          : `<span style="font-size:10px;color:#888">Req £${(cat.floatRequired||0).toFixed(2)}</span>`;
+        floatEl.innerHTML = `taken £${r.floatTaken.toFixed(2)}` +
+          (r.floatOwedAfter > 0 ? `<br><span class="float-owed">carry £${r.floatOwedAfter.toFixed(2)}</span>` : '');
       }
 
       locNet += r.net; locMgd += r.mgd; locSs += r.supplierShare; locCl += r.cashLeft; locFt += r.floatTaken;
@@ -592,7 +657,7 @@ function updateFormCalcs() {
 
     if (loc.hasPool) {
       const g = parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0;
-      const p = calcPool(g, loc.poolRent);
+      const p = calcPool(g, loc);
       const pn = document.getElementById('pool_net_' + loc.id);
       const ps = document.getElementById('pool_split_' + loc.id);
       if (pn) pn.textContent = p.poolGross.toFixed(2);
@@ -607,7 +672,7 @@ function updateFormCalcs() {
     set('loc_cl_' + loc.id, locCl);
     set('loc_ft_' + loc.id, locFt);
 
-    gtHtml += `<tr><td>${esc(loc.name)}</td><td class="ro">${round(locNet).toFixed(2)}</td><td class="ro">${round(locMgd).toFixed(2)}</td><td class="ro">${round(locSs).toFixed(2)}</td><td class="ro">${round(locCl).toFixed(2)}</td></tr>`;
+    gtHtml += `<tr><td>${esc(formatSiteName(loc))}</td><td class="ro">${round(locNet).toFixed(2)}</td><td class="ro">${round(locMgd).toFixed(2)}</td><td class="ro">${round(locSs).toFixed(2)}</td><td class="ro">${round(locCl).toFixed(2)}</td></tr>`;
     gNet += locNet; gMgd += locMgd; gSs += locSs; gCl += locCl;
   }
 
@@ -631,11 +696,14 @@ async function submitEntry() {
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
       const gross = parseFloat(document.getElementById('gross_' + fid)?.value) || 0;
+      const floatReq = cat.hasFloat
+        ? (parseFloat(document.getElementById('floatreq_' + fid)?.value) || 0)
+        : 0;
       const owed = getFloatOwedIn(loc.id, cat.id, date, null);
-      const r = calcCategory(gross, cat.rate, cat.hasFloat, cat.floatRequired, owed);
+      const r = calcCategory(gross, cat.rate, cat.hasFloat, floatReq, owed);
       locData.categories.push({
         id: cat.id, name: cat.name, rate: cat.rate,
-        hasFloat: !!cat.hasFloat, floatRequired: cat.floatRequired || 0,
+        hasFloat: !!cat.hasFloat, floatRequired: floatReq,
         cash: r.gross, gross: r.gross,
         floatTaken: r.floatTaken, floatOwedIn: r.floatOwedIn, floatOwedAfter: r.floatOwedAfter,
         net: r.net, total: r.net, mgd: r.mgd, cashLeft: r.cashLeft, supplierShare: r.supplierShare
@@ -648,9 +716,11 @@ async function submitEntry() {
     }
     if (loc.hasPool) {
       const g = parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0;
-      const p = calcPool(g, loc.poolRent);
+      const p = calcPool(g, loc);
       locData.poolGross = p.poolGross;
+      locData.poolMode = loc.poolMode || 'fifty';
       locData.poolRent = loc.poolRent || 0;
+      locData.poolPercent = loc.poolPercent || 50;
       locData.poolSS = p.poolSS;
       locData.poolCL = p.poolCL;
       entry.grandTotal += p.poolGross;
@@ -702,21 +772,25 @@ function render21DayTotals() {
 
   const locTotals = {};
   for (const loc of config.locations) {
-    locTotals[loc.id] = { name: loc.name, net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+    locTotals[loc.id] = { id: loc.id, name: formatSiteName(loc), net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
   }
 
   for (const e of recent) {
     for (const loc of e.locations || []) {
-      const key = loc.id || loc.name;
-      let t = locTotals[key];
+      let key = loc.id;
+      let t = key ? locTotals[key] : null;
       if (!t) {
-        // match by name
-        const cfg = config.locations.find(l => l.name === loc.name);
-        t = cfg ? locTotals[cfg.id] : null;
-        if (!t) {
-          locTotals[key] = { name: loc.name, net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+        const cfg = config.locations.find(l => l.id === loc.id) ||
+          config.locations.find(l => l.name === loc.name || (l.nameHistory || []).includes(loc.name));
+        if (cfg) {
+          key = cfg.id;
           t = locTotals[key];
         }
+      }
+      if (!t) {
+        key = loc.id || loc.name;
+        locTotals[key] = { id: loc.id, name: formatSiteName(loc, loc.id), net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+        t = locTotals[key];
       }
       for (const cat of loc.categories || []) {
         const net = cat.net != null ? cat.net : (cat.total || cat.cash || 0);
@@ -869,20 +943,24 @@ function showMonthlySummary() {
     totalMGD += e.grandMGD || 0;
     totalFloat += e.grandFloat || 0;
     for (const loc of e.locations || []) {
-      const name = loc.name;
-      if (!locTotals[name]) locTotals[name] = { net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+      const cfg = config.locations.find(l => l.id === loc.id) ||
+        config.locations.find(l => l.name === loc.name || (l.nameHistory || []).includes(loc.name));
+      const key = (cfg && cfg.id) || loc.id || loc.name;
+      if (!locTotals[key]) {
+        locTotals[key] = { id: key, label: formatSiteName(loc, cfg && cfg.id), net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+      }
       for (const cat of loc.categories || []) {
         const net = cat.net != null ? cat.net : (cat.total || 0);
-        locTotals[name].net += net;
-        locTotals[name].mgd += cat.mgd || 0;
-        locTotals[name].ss += cat.supplierShare || 0;
-        locTotals[name].cl += cat.cashLeft || 0;
-        locTotals[name].float += cat.floatTaken || 0;
+        locTotals[key].net += net;
+        locTotals[key].mgd += cat.mgd || 0;
+        locTotals[key].ss += cat.supplierShare || 0;
+        locTotals[key].cl += cat.cashLeft || 0;
+        locTotals[key].float += cat.floatTaken || 0;
       }
       if (loc.poolGross) {
-        locTotals[name].net += loc.poolGross;
-        locTotals[name].ss += loc.poolSS || 0;
-        locTotals[name].cl += loc.poolCL || 0;
+        locTotals[key].net += loc.poolGross;
+        locTotals[key].ss += loc.poolSS || 0;
+        locTotals[key].cl += loc.poolCL || 0;
       }
     }
   }
@@ -898,9 +976,10 @@ function showMonthlySummary() {
   html += `<div style="margin-top:12px"><h2>Totals per Location</h2><div class="table-scroll"><table class="tbl"><thead><tr>
     <th>Location</th><th>Net</th><th>MGD</th><th>Supplier</th><th>Cash Left</th><th></th>
   </tr></thead><tbody>`;
-  for (const [name, v] of Object.entries(locTotals)) {
-    html += `<tr><td>${esc(name)}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td>
-      <td><button class="btn btn-sm" onclick="viewLocationTotals('${esc(name).replace(/'/g,"\\'")}')">View</button></td></tr>`;
+  for (const v of Object.values(locTotals)) {
+    const viewKey = (v.id || v.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    html += `<tr><td>${esc(v.label)}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td>
+      <td><button class="btn btn-sm" onclick="viewLocationTotals('${viewKey}')">View</button></td></tr>`;
   }
   html += `</tbody></table></div></div>`;
 
@@ -936,7 +1015,8 @@ function viewMonth(month) {
       <table class="tbl"><thead><tr><th>Location</th><th>Category</th><th>Gross</th><th>Float</th><th>Net</th><th>SS</th><th>CL</th></tr></thead><tbody>`;
     for (const loc of e.locations || []) {
       for (const cat of loc.categories || []) {
-        html += `<tr><td>${esc(loc.name)}</td><td>${esc(cat.name)}</td>
+        const siteLbl = formatSiteName(loc, loc.id);
+        html += `<tr><td>${esc(siteLbl)}</td><td>${esc(cat.name)}</td>
           <td class="ro">£${(cat.gross ?? cat.cash ?? 0).toFixed(2)}</td>
           <td class="ro">£${(cat.floatTaken || 0).toFixed(2)}</td>
           <td class="ro">£${(cat.net ?? cat.total ?? 0).toFixed(2)}</td>
@@ -944,7 +1024,7 @@ function viewMonth(month) {
           <td class="ro">£${(cat.cashLeft || 0).toFixed(2)}</td></tr>`;
       }
       if (loc.poolGross) {
-        html += `<tr><td>${esc(loc.name)}</td><td>Pool</td><td class="ro">£${loc.poolGross.toFixed(2)}</td><td class="ro">—</td>
+        html += `<tr><td>${esc(formatSiteName(loc, loc.id))}</td><td>Pool</td><td class="ro">£${loc.poolGross.toFixed(2)}</td><td class="ro">—</td>
           <td class="ro">£${loc.poolGross.toFixed(2)}</td><td class="ro">£${(loc.poolSS||0).toFixed(2)}</td><td class="ro">£${(loc.poolCL||0).toFixed(2)}</td></tr>`;
       }
     }
@@ -955,12 +1035,18 @@ function viewMonth(month) {
   document.getElementById('monthModal').classList.add('active');
 }
 
-function viewLocationTotals(locName) {
+function viewLocationTotals(locKey) {
   const entries = _monthlyFiltered;
-  document.getElementById('monthModalTitle').textContent = locName + ' — monthly';
+  const cfg = config.locations.find(l => l.id === locKey) ||
+    config.locations.find(l => l.name === locKey || (l.nameHistory || []).includes(locKey));
+  const title = cfg ? formatSiteName(cfg) : locKey;
+  document.getElementById('monthModalTitle').textContent = title + ' — monthly';
   const monthData = {};
   for (const e of entries) {
-    const loc = (e.locations || []).find(l => l.name === locName);
+    const loc = (e.locations || []).find(l =>
+      (cfg && (l.id === cfg.id || l.name === cfg.name || (cfg.nameHistory || []).includes(l.name))) ||
+      l.id === locKey || l.name === locKey
+    );
     if (!loc) continue;
     const m = e.date.substring(0, 7);
     if (!monthData[m]) monthData[m] = { net: 0, mgd: 0, ss: 0, cl: 0 };
@@ -996,22 +1082,38 @@ function renderSettings() {
   const container = document.getElementById('settingsContainer');
   let html = '';
   config.locations.forEach((loc, li) => {
+    const histNote = (loc.nameHistory && loc.nameHistory.length)
+      ? `<p class="hint">Previously: ${esc(loc.nameHistory.join(', '))}</p>`
+      : '';
+    const mode = loc.poolMode || 'fifty';
     html += `<div class="settings-card" data-li="${li}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-        <label style="flex:1">Site name<br><input type="text" value="${esc(loc.name)}" onchange="config.locations[${li}].name=this.value"></label>
+        <label style="flex:1">Site name<br><input type="text" value="${esc(loc.name)}" onchange="renameLocation(${li}, this.value)"></label>
         <button class="btn btn-danger btn-sm" onclick="removeLocation(${li})">Remove site</button>
       </div>
-      <label style="margin-top:10px"><input type="checkbox" ${loc.hasPool ? 'checked' : ''} onchange="config.locations[${li}].hasPool=this.checked;renderSettings()"> Has pool</label>
-      ${loc.hasPool ? `<label>Pool rent (£, 0 = 50/50)<br><input type="number" min="0" step="1" value="${loc.poolRent||0}" onchange="config.locations[${li}].poolRent=parseFloat(this.value)||0"></label>` : ''}
-      <h3 style="margin-top:12px">Categories</h3>
-      <p class="hint">Rate = cash-left share (0.6 = 60% CL / 40% supplier). Float never applies to pool.</p>`;
+      ${histNote}
+      <label style="margin-top:10px"><input type="checkbox" ${loc.hasPool ? 'checked' : ''} onchange="config.locations[${li}].hasPool=this.checked;renderSettings()"> Has pool</label>`;
+
+    if (loc.hasPool) {
+      html += `<div style="margin:10px 0;padding:10px;background:#f8f8fa;border-radius:8px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:8px">Pool split mode</div>
+        <label style="display:block;margin:4px 0"><input type="radio" name="poolMode_${li}" value="fifty" ${mode==='fifty'?'checked':''} onchange="setPoolMode(${li},'fifty')"> 50/50 share on gross</label>
+        <label style="display:block;margin:4px 0"><input type="radio" name="poolMode_${li}" value="rent" ${mode==='rent'?'checked':''} onchange="setPoolMode(${li},'rent')"> Fixed £ rent (supplier)</label>
+        ${mode==='rent' ? `<label style="margin:4px 0 8px 22px">Rent £ <input type="number" min="0" step="1" style="width:100px" value="${loc.poolRent||0}" onchange="config.locations[${li}].poolRent=parseFloat(this.value)||0"></label>` : ''}
+        <label style="display:block;margin:4px 0"><input type="radio" name="poolMode_${li}" value="percent" ${mode==='percent'?'checked':''} onchange="setPoolMode(${li},'percent')"> Percentage of gross (supplier %)</label>
+        ${mode==='percent' ? `<label style="margin:4px 0 0 22px">Supplier % <input type="number" min="0" max="100" step="1" style="width:80px" value="${loc.poolPercent||50}" onchange="config.locations[${li}].poolPercent=parseFloat(this.value)||50"></label>` : ''}
+      </div>`;
+    }
+
+    html += `<h3 style="margin-top:12px">Categories</h3>
+      <p class="hint">Rate = cash-left share. Default float £ prefills the daily entry field (editable per collection). Pool never uses float.</p>`;
 
     loc.categories.forEach((cat, ci) => {
       html += `<div class="cat-row">
         <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="config.locations[${li}].categories[${ci}].name=this.value"></label>
         <label>Rate (CL)<br><input type="number" min="0" max="1" step="0.01" value="${cat.rate}" onchange="config.locations[${li}].categories[${ci}].rate=parseFloat(this.value)||0.5"></label>
         <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="config.locations[${li}].categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
-        <label>Float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="config.locations[${li}].categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
+        <label>Default float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="config.locations[${li}].categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
         <button class="btn btn-danger btn-sm" onclick="removeCategory(${li},${ci})">×</button>
       </div>`;
     });
@@ -1023,12 +1125,20 @@ function renderSettings() {
   container.innerHTML = html;
 }
 
+function setPoolMode(li, mode) {
+  config.locations[li].poolMode = mode;
+  renderSettings();
+}
+
 function addLocation() {
   config.locations.push({
     id: uid(),
     name: 'New Site',
+    nameHistory: [],
     hasPool: false,
+    poolMode: 'fifty',
     poolRent: 0,
+    poolPercent: 50,
     categories: [
       { id: uid(), name: 'Reels', rate: 0.6, hasFloat: false, floatRequired: 0 },
       { id: uid(), name: 'Digital', rate: 0.5, hasFloat: false, floatRequired: 0 }
@@ -1096,7 +1206,7 @@ function exportCSV() {
     for (const loc of e.locations || []) {
       for (const cat of loc.categories || []) {
         rows.push([
-          e.date, loc.name, cat.name,
+          e.date, formatSiteName(loc, loc.id), cat.name,
           cat.gross ?? cat.cash ?? 0,
           cat.floatTaken || 0,
           cat.floatOwedAfter || 0,
@@ -1107,7 +1217,7 @@ function exportCSV() {
         ]);
       }
       if (loc.poolGross) {
-        rows.push([e.date, loc.name, 'Pool', loc.poolGross, 0, 0, loc.poolGross, 0, loc.poolSS || 0, loc.poolCL || 0]);
+        rows.push([e.date, formatSiteName(loc, loc.id), 'Pool', loc.poolGross, 0, 0, loc.poolGross, 0, loc.poolSS || 0, loc.poolCL || 0]);
       }
     }
   }
