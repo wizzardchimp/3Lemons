@@ -31,6 +31,9 @@ h3{font-size:14px;margin:0 0 8px}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th,.tbl td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
 .tbl th{background:#f8f8fa;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#666}
+.entry-table th,.entry-table td{text-align:center;vertical-align:middle}
+.entry-table th:first-child,.entry-table td:first-child{text-align:left}
+.entry-table input[type=number]{margin:0 auto;display:block}
 .tbl .ro{text-align:right;font-variant-numeric:tabular-nums}
 .tbl input[type=number]{width:100%;max-width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:15px;text-align:right}
 .loc-header{background:#1a1a2e!important;color:#fff!important;font-size:14px!important;text-transform:none!important;letter-spacing:0!important}
@@ -573,16 +576,11 @@ function renderForm() {
 
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
-      const owed = getFloatOwedIn(loc.id, cat.id, date, null);
-      const defFloat = cat.hasFloat ? (cat.floatRequired || 0) : 0;
-      const defHint = cat.hasFloat && defFloat > 0
-        ? `<br><span style="font-size:10px;color:#888">default £${defFloat.toFixed(2)}</span>`
-        : '';
       html += `<tr>
         <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${(cat.rate*100).toFixed(0)}/${((1-cat.rate)*100).toFixed(0)}</span></td>
         <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
         <td>${cat.hasFloat
-          ? `<input type="number" step="any" min="0" id="floatreq_${fid}" value="0" oninput="updateFormCalcs()" placeholder="0">${defHint}`
+          ? `<input type="number" step="any" min="0" id="floatreq_${fid}" value="0" oninput="updateFormCalcs()" placeholder="0">`
           : '<span style="font-size:10px;color:#bbb">—</span>'}</td>
         <td style="font-size:11px" id="float_${fid}">—</td>
         <td class="ro net-val" id="net_${fid}">0.00</td>
@@ -660,15 +658,13 @@ function updateFormCalcs() {
       if (splitEl) splitEl.innerHTML = `MGD £${r.mgd.toFixed(2)}<br>SS £${r.supplierShare.toFixed(2)}<br>CL £${r.cashLeft.toFixed(2)}`;
       if (floatEl && cat.hasFloat) {
         const defF = cat.floatRequired || 0;
-        const entered = floatReq;
-        const vsDefault = defF > 0
-          ? `<br><span style="font-size:10px;color:#888">vs default £${defF.toFixed(2)} (${entered >= defF ? '+' : ''}${(entered - defF).toFixed(2)})</span>`
-          : '';
-        floatEl.innerHTML =
-          `float £${r.floatTaken.toFixed(2)}` +
-          (owed > 0 ? `<br><span class="float-owed">from last £${owed.toFixed(2)}</span>` : '') +
-          (r.floatOwedAfter > 0 ? `<br><span class="float-owed">carry next £${r.floatOwedAfter.toFixed(2)}</span>` : '') +
-          vsDefault;
+        const diff = round(defF - floatReq);
+        const diffStr = (diff >= 0 ? '£' : '−£') + Math.abs(diff).toFixed(2);
+        let bits = [`float £${r.floatTaken.toFixed(2)}`];
+        if (owed > 0) bits.push(`<span class="float-owed">from last £${owed.toFixed(2)}</span>`);
+        if (r.floatOwedAfter > 0) bits.push(`<span class="float-owed">carry next £${r.floatOwedAfter.toFixed(2)}</span>`);
+        bits.push(`diff ${diffStr}`);
+        floatEl.innerHTML = bits.join('<br>');
       }
 
       locNet += r.net; locMgd += r.mgd; locSs += r.supplierShare; locCl += r.cashLeft; locFt += r.floatTaken;
