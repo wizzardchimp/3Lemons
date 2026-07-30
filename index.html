@@ -580,7 +580,7 @@ function renderForm() {
         <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${(cat.rate*100).toFixed(0)}/${((1-cat.rate)*100).toFixed(0)}</span></td>
         <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
         <td>${cat.hasFloat
-          ? `<input type="number" step="any" min="0" id="floatreq_${fid}" value="0" oninput="updateFormCalcs()" placeholder="0">`
+          ? `<input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0">`
           : '<span style="font-size:10px;color:#bbb">—</span>'}</td>
         <td style="font-size:11px" id="float_${fid}">—</td>
         <td class="ro net-val" id="net_${fid}">0.00</td>
