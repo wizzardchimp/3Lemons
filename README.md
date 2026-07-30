@@ -6,7 +6,7 @@ New takings app (separate from BL) with:
 - **Per-category float** (Reels / Digital; never pool) with **carry-forward** when float &gt; gross  
 - MGD (20%), supplier share, cash left calculated on **net** (gross − float taken)  
 - History, monthly summary, last-21-days totals  
-- Password gate (default: `3l26`)
+- Password gate (default: `robin`)
 
 ## Live
 
