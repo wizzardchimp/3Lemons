@@ -32,11 +32,10 @@ h3{font-size:14px;margin:0 0 8px}
 .tbl th,.tbl td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
 .tbl th{background:#f8f8fa;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#666}
 .tbl th.num,.tbl .ro{text-align:right;font-variant-numeric:tabular-nums}
-.entry-table th,.entry-table td{text-align:center;vertical-align:middle}
+.entry-table th,.entry-table td{vertical-align:middle}
 .entry-table th:first-child,.entry-table td:first-child{text-align:left}
-.entry-table th.num,.entry-table td.num{text-align:right}
-.entry-table input[type=number]{margin-left:auto;display:block}
-.tbl input[type=number]{width:100%;max-width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:15px;text-align:right}
+.entry-table input[type=number]{width:100%;max-width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:15px;text-align:right;display:block}
+.tbl:not(.entry-table) input[type=number]{width:100%;max-width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:15px;text-align:right}
 .loc-header{background:#1a1a2e!important;color:#fff!important;font-size:14px!important;text-transform:none!important;letter-spacing:0!important}
 .loc-summary{background:#fafafa}
 .loc-summary-inner{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 4px;font-size:12px}
@@ -52,7 +51,6 @@ h3{font-size:14px;margin:0 0 8px}
 }
 .settings-card input[type=checkbox]{margin-right:6px;transform:scale(1.15)}
 .cat-row{display:grid;grid-template-columns:1fr 90px 70px 110px auto;gap:8px;align-items:end;margin:8px 0;padding:8px;background:#f8f8fa;border-radius:8px}
-.entry-table input[type=number]{width:100%;max-width:100px}
 .cat-row label{margin:0;font-size:11px;color:#666}
 .cat-row input{width:100%;margin:0}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
@@ -572,20 +570,20 @@ function renderForm() {
   for (const loc of config.locations) {
     html += `<div class="table-scroll"><table class="tbl entry-table"><thead>
       <tr class="loc-header-row"><th colspan="6" class="loc-header">${esc(formatSiteName(loc))}</th></tr>
-      <tr><th>Category</th><th class="num">Gross (£)</th><th class="num">Float req (£)</th><th class="num">Float / Carried from last collection</th><th class="num">Net</th><th class="num">Split</th></tr>
+      <tr><th>Category</th><th>Gross (£)</th><th>Float req (£)</th><th>Float / Carried from last collection</th><th>Net</th><th>Split</th></tr>
     </thead><tbody>`;
 
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
       html += `<tr>
         <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${(cat.rate*100).toFixed(0)}/${((1-cat.rate)*100).toFixed(0)}</span></td>
-        <td class="num"><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
-        <td class="num">${cat.hasFloat
+        <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
+        <td>${cat.hasFloat
           ? `<input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0">`
           : '<span style="font-size:10px;color:#bbb">—</span>'}</td>
-        <td class="num" style="font-size:11px" id="float_${fid}">—</td>
+        <td style="font-size:11px" id="float_${fid}">—</td>
         <td class="ro net-val" id="net_${fid}">0.00</td>
-        <td class="num" style="font-size:11px" id="split_${fid}">—</td>
+        <td style="font-size:11px" id="split_${fid}">—</td>
       </tr>`;
     }
 
@@ -593,11 +591,11 @@ function renderForm() {
       const lid = loc.id;
       html += `<tr>
         <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
-        <td class="num"><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
-        <td class="num" style="font-size:10px;color:#bbb">n/a</td>
-        <td class="num" style="font-size:10px;color:#bbb">—</td>
+        <td><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
+        <td style="font-size:10px;color:#bbb">n/a</td>
+        <td style="font-size:10px;color:#bbb">—</td>
         <td class="ro" id="pool_net_${lid}">0.00</td>
-        <td class="num" style="font-size:11px" id="pool_split_${lid}">—</td>
+        <td style="font-size:11px" id="pool_split_${lid}">—</td>
       </tr>`;
     }
 
