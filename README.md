@@ -29,7 +29,7 @@ Create a spreadsheet with tabs (or let the script create them):
 4. Copy the `/exec` URL  
 
 ### 3. App Settings
-1. Open the site → log in (`3l26`)  
+1. Open the site → log in (`robin`)  
 2. Settings → paste API URL → Save  
 3. Add sites / categories / float amounts → **Save to Sheet**  
 
