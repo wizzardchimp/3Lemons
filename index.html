@@ -1171,24 +1171,32 @@ function renderSavedSitesList() {
     el.innerHTML = '<div class="settings-card"><p class="hint" style="margin:0">No sites saved yet.</p></div>';
     return;
   }
-  let html = `<div class="settings-card"><h3 style="margin:0 0 10px">Saved sites</h3>`;
-  config.locations.forEach((loc, li) => {
+  let html = `<div class="settings-card"><h3 style="margin:0 0 10px">Saved sites (${config.locations.length})</h3>`;
+  config.locations.forEach((loc) => {
     const realHist = (loc.nameHistory || []).filter(n => n && !isPlaceholderSiteName(n) && n !== loc.name);
     const hist = realHist.length ? ` <span style="color:#888;font-size:11px">(was ${esc(realHist.join(', '))})</span>` : '';
     const cats = (loc.categories || []).map(c => c.name).join(', ') || '—';
-    html += `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee">
+    const sid = String(loc.id || '');
+    html += `<div class="saved-site-row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee">
       <div>
         <strong>${esc(loc.name || 'Unnamed')}</strong>${hist}<br>
         <span style="font-size:12px;color:#888">${esc(cats)}${loc.hasPool ? ' · Pool (' + esc(poolModeLabel(loc)) + ')' : ''}</span>
       </div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-sm" onclick="editSavedSite('${esc(loc.id)}')">Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="removeLocationById('${esc(loc.id)}')">Remove</button>
+        <button type="button" class="btn btn-sm btn-edit-site" data-site-id="${esc(sid)}">Edit</button>
+        <button type="button" class="btn btn-danger btn-sm btn-remove-site" data-site-id="${esc(sid)}">Remove</button>
       </div>
     </div>`;
   });
   html += `</div>`;
   el.innerHTML = html;
+
+  el.querySelectorAll('.btn-edit-site').forEach(btn => {
+    btn.addEventListener('click', () => editSavedSite(btn.getAttribute('data-site-id')));
+  });
+  el.querySelectorAll('.btn-remove-site').forEach(btn => {
+    btn.addEventListener('click', () => removeLocationById(btn.getAttribute('data-site-id')));
+  });
 }
 
 function draftAddCategory() {
@@ -1204,12 +1212,28 @@ function draftRemoveCategory(ci) {
 }
 
 function editSavedSite(id) {
-  const loc = config.locations.find(l => l.id === id);
-  if (!loc) return;
+  id = String(id || '');
+  const loc = config.locations.find(l => String(l.id) === id);
+  if (!loc) {
+    alert('Site not found. Try Save site again or reload the page.');
+    console.warn('editSavedSite: no loc for', id, config.locations.map(l => l.id));
+    return;
+  }
   draftSite = JSON.parse(JSON.stringify(loc));
-  draftEditingId = loc.id;
+  if (!Array.isArray(draftSite.categories)) draftSite.categories = [];
+  draftEditingId = String(loc.id);
   renderSettings();
-  document.getElementById('siteDraftCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const card = document.getElementById('siteDraftCard');
+  if (card) {
+    card.style.outline = '2px solid #f7b731';
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { card.style.outline = ''; }, 1500);
+  }
+  const nameEl = document.getElementById('draft_name');
+  if (nameEl) {
+    nameEl.focus();
+    nameEl.select();
+  }
 }
 
 function removeLocationById(id) {
@@ -1310,21 +1334,32 @@ function renderMergeSites() {
   const el = document.getElementById('mergeSitesContainer');
   if (!el) return;
   if (config.locations.length < 2) {
-    el.innerHTML = '';
+    el.innerHTML = `<div class="settings-card" style="margin-top:16px">
+      <h2>Merge sites</h2>
+      <p class="hint" style="margin:0">Need at least two saved sites to merge (e.g. Alberto → Alberto2).</p>
+    </div>`;
     return;
   }
-  let opts = '';
-  config.locations.forEach((loc, i) => {
-    opts += `<label style="display:block;margin:6px 0"><input type="radio" name="mergeKeep" value="${esc(loc.id)}"> Keep <strong>${esc(loc.name)}</strong> <span style="color:#888;font-size:11px">(${esc(loc.id)})</span></label>`;
-    opts += `<label style="display:block;margin:2px 0 10px 18px"><input type="radio" name="mergeFrom" value="${esc(loc.id)}"> Merge from this into Keep</label>`;
-  });
+  let options = config.locations.map(loc =>
+    `<option value="${esc(String(loc.id))}">${esc(loc.name || 'Unnamed')}</option>`
+  ).join('');
   el.innerHTML = `<div class="settings-card" style="margin-top:16px">
     <h2>Merge sites</h2>
-    <p class="hint">Permanently move all history from one site into another (updates the Google Sheet). The merged-away site is removed from Settings; its name is kept under “Previously”.</p>
-    ${opts}
-    <button class="btn btn-primary" style="margin-top:8px" onclick="mergeSites()">Merge permanently</button>
+    <p class="hint">Move all collection history from one site into another on the Google Sheet, then remove the source site from Settings.</p>
+    <label style="display:block;margin:8px 0">Merge FROM (will be removed)<br>
+      <select id="mergeFromSelect" style="width:100%;max-width:360px;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:6px">
+        <option value="">— select —</option>${options}
+      </select>
+    </label>
+    <label style="display:block;margin:8px 0">INTO / keep<br>
+      <select id="mergeKeepSelect" style="width:100%;max-width:360px;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:6px">
+        <option value="">— select —</option>${options}
+      </select>
+    </label>
+    <button type="button" class="btn btn-primary" id="mergeSitesBtn" style="margin-top:8px">Merge permanently</button>
     <span id="mergeMsg" class="msg"></span>
   </div>`;
+  document.getElementById('mergeSitesBtn').addEventListener('click', () => mergeSites());
 }
 
 
@@ -1355,20 +1390,23 @@ async function updateEntryOnSheet(entry) {
 }
 
 async function mergeSites() {
-  const keepId = document.querySelector('input[name="mergeKeep"]:checked')?.value;
-  const fromId = document.querySelector('input[name="mergeFrom"]:checked')?.value;
+  const keepId = document.getElementById('mergeKeepSelect')?.value || '';
+  const fromId = document.getElementById('mergeFromSelect')?.value || '';
   const msgEl = document.getElementById('mergeMsg');
   if (!keepId || !fromId) {
-    if (msgEl) { msgEl.textContent = 'Select Keep and Merge from'; msgEl.className = 'msg error'; }
+    if (msgEl) { msgEl.textContent = 'Select both FROM and INTO sites'; msgEl.className = 'msg error'; }
     return;
   }
   if (keepId === fromId) {
-    if (msgEl) { msgEl.textContent = 'Keep and Merge from must be different sites'; msgEl.className = 'msg error'; }
+    if (msgEl) { msgEl.textContent = 'FROM and INTO must be different sites'; msgEl.className = 'msg error'; }
     return;
   }
-  const keep = config.locations.find(l => l.id === keepId);
-  const from = config.locations.find(l => l.id === fromId);
-  if (!keep || !from) return;
+  const keep = config.locations.find(l => String(l.id) === String(keepId));
+  const from = config.locations.find(l => String(l.id) === String(fromId));
+  if (!keep || !from) {
+    if (msgEl) { msgEl.textContent = 'Site not found — reload and try again'; msgEl.className = 'msg error'; }
+    return;
+  }
 
   if (!confirm('Merge all history from "' + from.name + '" into "' + keep.name + '"?\n\nThis rewrites entries on the Google Sheet and removes "' + from.name + '" from Settings.')) return;
 
