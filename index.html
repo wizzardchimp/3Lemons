@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>3Lemons — Daily Takings</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1a1a2e;line-height:1.4}
+.nav{display:flex;gap:0;background:#1a1a2e;position:sticky;top:0;z-index:100;overflow-x:auto}
+.nav a{color:#aaa;padding:14px 16px;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent}
+.nav a.active,.nav a:hover{color:#fff;border-bottom-color:#f7b731}
+.page{display:none;padding:16px;max-width:960px;margin:0 auto}
+.page.active{display:block}
+h1{font-size:22px;margin-bottom:12px}
+h2{font-size:16px;margin:12px 0 8px}
+h3{font-size:14px;margin:0 0 8px}
+.btn{border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;background:#e8e8e8;color:#333}
+.btn:hover{filter:brightness(0.95)}
+.btn-primary{background:#f7b731;color:#1a1a2e}
+.btn-danger{background:#e74c3c;color:#fff}
+.btn-outline{background:transparent;border:1.5px solid #ccc}
+.btn-success{background:#27ae60;color:#fff}
+.btn-sm{padding:4px 10px;font-size:12px}
+.msg{font-size:13px;margin-left:8px}
+.msg.success{color:#27ae60}
+.msg.error{color:#e74c3c}
+.form-header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.form-header input[type=date]{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px}
+.table-scroll{overflow-x:auto;margin-bottom:14px;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
+.tbl th{background:#f8f8fa;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#666}
+.tbl .ro{text-align:right;font-variant-numeric:tabular-nums}
+.tbl input[type=number]{width:100%;max-width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:15px;text-align:right}
+.loc-header{background:#1a1a2e!important;color:#fff!important;font-size:14px!important;text-transform:none!important;letter-spacing:0!important}
+.loc-summary{background:#fafafa}
+.loc-summary-inner{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 4px;font-size:12px}
+.ls-lbl{color:#888;font-weight:600}
+.summary-card{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border-radius:10px;padding:14px 18px;min-width:120px;flex:1;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.kpi .val{font-size:22px;font-weight:700;color:#1a1a2e}
+.kpi .lbl{font-size:11px;color:#888;margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
+.settings-card{background:#fff;border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.settings-card label{display:block;font-size:13px;margin:6px 0}
+.settings-card input[type=number],.settings-card input[type=text],.settings-card input[type=url]{
+  padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:2px;max-width:100%
+}
+.settings-card input[type=checkbox]{margin-right:6px;transform:scale(1.15)}
+.cat-row{display:grid;grid-template-columns:1fr 90px 70px 90px auto;gap:8px;align-items:end;margin:8px 0;padding:8px;background:#f8f8fa;border-radius:8px}
+.cat-row label{margin:0;font-size:11px;color:#666}
+.cat-row input{width:100%;margin:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.empty-state{text-align:center;padding:40px;color:#888}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e,#2d3436,#f7b73133);z-index:9999;display:flex;justify-content:center;align-items:center}
+.login-overlay.hidden{display:none}
+.login-box{background:#fff;border-radius:16px;padding:40px 32px;width:300px;box-shadow:0 16px 48px rgba(0,0,0,.3);text-align:center}
+.login-box h1{margin:0 0 8px;font-size:24px}
+.login-box p{margin:0 0 20px;font-size:13px;color:#888}
+.login-box input{width:100%;padding:12px;font-size:18px;text-align:center;border:2px solid #ddd;border-radius:8px;outline:none}
+.login-box input:focus{border-color:#f7b731}
+.login-error{color:#e74c3c;font-size:12px;margin-top:8px;display:none}
+.loading-overlay{position:fixed;inset:0;background:rgba(26,26,46,.55);z-index:9000;display:none;justify-content:center;align-items:center;flex-direction:column;gap:14px}
+.loading-overlay.active{display:flex}
+.loading-spinner{width:44px;height:44px;border:4px solid rgba(255,255,255,.25);border-top-color:#f7b731;border-radius:50%;animation:spin .75s linear infinite}
+.loading-text{color:#fff;font-size:14px;font-weight:600}
+@keyframes spin{to{transform:rotate(360deg)}}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:flex-start;overflow-y:auto;padding:20px}
+.modal-overlay.active{display:flex}
+.modal-box{background:#f5f5f5;border-radius:12px;padding:20px;max-width:700px;width:100%;margin:20px auto;box-shadow:0 8px 32px rgba(0,0,0,.3);position:relative}
+.modal-close{position:absolute;top:12px;right:16px;font-size:24px;cursor:pointer;background:none;border:none;color:#666}
+.float-owed{color:#e67e22;font-size:11px;font-weight:600}
+.net-val{color:#27ae60;font-weight:600}
+.hint{font-size:12px;color:#888;margin:4px 0 10px}
+@media(max-width:600px){
+  .cat-row{grid-template-columns:1fr 1fr;gap:6px}
+  .kpi .val{font-size:18px}
+}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-box">
+    <h1>3Lemons</h1>
+    <p>Enter password to continue</p>
+    <input type="password" id="loginPwd" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="loginError" class="login-error">Incorrect password</div>
+    <button class="btn btn-primary" style="width:100%;margin-top:16px;padding:12px;font-size:16px" onclick="doLogin()">Log In</button>
+  </div>
+</div>
+<script>if(sessionStorage.getItem('3l_logged_in'))document.getElementById('loginOverlay').classList.add('hidden')</script>
+
+<div id="loadingOverlay" class="loading-overlay" aria-busy="false">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">Loading…</div>
+</div>
+
+<div class="nav">
+  <a class="active" onclick="showPage('entry')">Daily Entry</a>
+  <a onclick="showPage('history')">History</a>
+  <a onclick="showPage('monthly')">Summary</a>
+  <a onclick="showPage('settings')">Settings</a>
+</div>
+
+<div id="page-entry" class="page active">
+  <h1>Daily Takings</h1>
+  <div id="totals21Container"></div>
+  <div class="form-header">
+    <label>Date:</label>
+    <input type="date" id="entryDate">
+    <button class="btn btn-primary" onclick="submitEntry()">Submit</button>
+    <button class="btn btn-outline" onclick="resetForm()">Reset</button>
+    <span id="submitMsg" class="msg"></span>
+  </div>
+  <div id="formContainer"></div>
+</div>
+
+<div id="page-history" class="page">
+  <h1>History</h1>
+  <div class="toolbar">
+    <button class="btn btn-success" onclick="exportCSV()">Export CSV</button>
+    <button class="btn btn-danger" onclick="clearHistory()">Clear All</button>
+    <span id="historyCount" style="font-size:14px;color:#888"></span>
+  </div>
+  <div id="historyTable"></div>
+</div>
+
+<div id="page-monthly" class="page">
+  <h1>Summary</h1>
+  <div class="toolbar">
+    <label style="font-size:13px">From: <input type="date" id="filterFrom" onchange="clearRangeRadios();showMonthlySummary()"></label>
+    <label style="font-size:13px">To: <input type="date" id="filterTo" onchange="clearRangeRadios();showMonthlySummary()"></label>
+    <label style="font-size:13px"><input type="radio" name="range" value="3" onchange="applyRangeFilter()"> 3m</label>
+    <label style="font-size:13px"><input type="radio" name="range" value="6" onchange="applyRangeFilter()"> 6m</label>
+    <label style="font-size:13px"><input type="radio" name="range" value="12" onchange="applyRangeFilter()"> 12m</label>
+    <label style="font-size:13px"><input type="radio" name="range" value="all" checked onchange="applyRangeFilter()"> All</label>
+  </div>
+  <div id="monthlySummary"></div>
+</div>
+
+<div id="page-settings" class="page">
+  <h1>Settings</h1>
+
+  <div class="settings-card">
+    <h2>Google Sheet API URL</h2>
+    <p class="hint">Paste the web app URL from Apps Script → Deploy</p>
+    <input type="url" id="apiUrlInput" style="width:100%;max-width:600px" placeholder="https://script.google.com/macros/s/.../exec">
+    <button class="btn btn-primary" style="margin-top:8px" onclick="saveApiUrl()">Save API URL</button>
+    <span id="apiUrlMsg" class="msg"></span>
+  </div>
+
+  <div class="settings-card">
+    <h2>Delete Last Submission</h2>
+    <button class="btn btn-danger" onclick="deleteLastSubmission()">Delete Last</button>
+    <span id="deleteLastMsg" class="msg"></span>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin:16px 0 8px">
+    <div>
+      <h2 style="margin:0">Sites &amp; Rates</h2>
+      <p class="hint">Add, edit or remove locations. Float is per category (not pool).</p>
+    </div>
+    <button class="btn btn-primary" onclick="addLocation()">+ Add Site</button>
+  </div>
+  <div id="settingsContainer"></div>
+  <div style="margin:16px 0">
+    <button class="btn btn-primary" onclick="saveSettings()">Save to Sheet</button>
+    <span id="settingsMsg" class="msg"></span>
+  </div>
+</div>
+
+<div id="monthModal" class="modal-overlay" onclick="if(event.target===this)closeMonthModal()">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeMonthModal()">&times;</button>
+    <h2 id="monthModalTitle"></h2>
+    <div id="monthModalEntries"></div>
+  </div>
+</div>
+
+<script>
+// ===== DEFAULTS =====
+const APP_PASSWORD = '3l26';
+const MGD_RATE = 0.2;
+
+function uid() {
+  return 'id_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+const DEFAULT_CONFIG = {
+  locations: [
+    {
+      id: uid(), name: 'Site A', hasPool: false, poolRent: 0,
+      categories: [
+        { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0 },
+        { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0 }
+      ]
+    }
+  ]
+};
+
+let config;
+let cachedEntries = [];
+let entriesLoaded = false;
+let _monthlyFiltered = [];
+
+// ===== CONFIG =====
+function loadConfigLocal() {
+  const saved = localStorage.getItem('3l_config');
+  if (saved) {
+    try {
+      config = migrateConfig(JSON.parse(saved));
+      return;
+    } catch (e) {}
+  }
+  config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  // fresh ids
+  config.locations.forEach(loc => {
+    loc.id = loc.id || uid();
+    (loc.categories || []).forEach(c => { c.id = c.id || uid(); });
+  });
+}
+
+function migrateConfig(cfg) {
+  if (!cfg || !Array.isArray(cfg.locations)) return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  cfg.locations.forEach(loc => {
+    loc.id = loc.id || uid();
+    loc.hasPool = !!loc.hasPool;
+    loc.poolRent = parseFloat(loc.poolRent) || 0;
+    if (!Array.isArray(loc.categories)) loc.categories = [];
+    loc.categories.forEach(c => {
+      c.id = c.id || uid();
+      c.rate = parseFloat(c.rate);
+      if (isNaN(c.rate)) c.rate = 0.5;
+      c.hasFloat = !!c.hasFloat;
+      c.floatRequired = parseFloat(c.floatRequired) || 0;
+    });
+  });
+  return cfg;
+}
+
+function saveConfigLocal() {
+  localStorage.setItem('3l_config', JSON.stringify(config));
+}
+
+function applyRemoteConfig(remote) {
+  if (!remote || !Array.isArray(remote.locations)) return false;
+  config = migrateConfig(JSON.parse(JSON.stringify(remote)));
+  saveConfigLocal();
+  return true;
+}
+
+// ===== API =====
+function getApiUrl() { return localStorage.getItem('3l_api_url') || ''; }
+function setApiUrl(url) { localStorage.setItem('3l_api_url', url); }
+
+function showLoading(msg) {
+  const el = document.getElementById('loadingOverlay');
+  const txt = document.getElementById('loadingText');
+  if (txt) txt.textContent = msg || 'Loading…';
+  if (el) { el.classList.add('active'); el.setAttribute('aria-busy', 'true'); }
+}
+function hideLoading() {
+  const el = document.getElementById('loadingOverlay');
+  if (el) { el.classList.remove('active'); el.setAttribute('aria-busy', 'false'); }
+}
+
+async function loadEntries() {
+  const url = getApiUrl();
+  if (!url) { cachedEntries = []; entriesLoaded = true; return []; }
+  showLoading('Loading data…');
+  try {
+    const r = await fetch(url);
+    const data = await r.json();
+    if (Array.isArray(data)) {
+      cachedEntries = data;
+    } else {
+      cachedEntries = data.entries || [];
+      if (data.config) {
+        applyRemoteConfig(data.config);
+      } else if (config) {
+        await saveConfigToSheet({ silent: true });
+      }
+    }
+    migrateEntries();
+    entriesLoaded = true;
+    return cachedEntries;
+  } catch (e) {
+    console.error(e);
+    cachedEntries = [];
+    entriesLoaded = true;
+    return [];
+  } finally {
+    hideLoading();
+  }
+}
+
+function migrateEntries() {
+  cachedEntries = (cachedEntries || []).filter(e => {
+    if (!e || e.action) return false;
+    if (!e.date) return false;
+    return true;
+  });
+  cachedEntries.forEach(e => {
+    e.date = normalizeEntryDate(e.date);
+    if (!e.id) e.id = e.timestamp || e.date;
+  });
+}
+
+function normalizeEntryDate(d) {
+  if (!d) return d;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(d))) return String(d);
+  const p = new Date(d);
+  if (!isNaN(p.getTime())) {
+    return p.getFullYear() + '-' + String(p.getMonth()+1).padStart(2,'0') + '-' + String(p.getDate()).padStart(2,'0');
+  }
+  return String(d);
+}
+
+function getEntries() { return cachedEntries; }
+
+async function saveConfigToSheet(opts) {
+  const url = getApiUrl();
+  if (!url) return false;
+  const silent = opts && opts.silent;
+  if (!silent) showLoading('Saving config…');
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'saveConfig', config })
+    });
+    const result = await r.json();
+    return !!result.success;
+  } catch (e) {
+    console.error(e);
+    return false;
+  } finally {
+    if (!silent) hideLoading();
+  }
+}
+
+async function saveEntry(entry) {
+  const url = getApiUrl();
+  if (!url) { showMsg('submitMsg', 'No API URL — set in Settings', 'error'); return false; }
+  showLoading('Saving…');
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(entry)
+    });
+    const result = await r.json();
+    if (result.success) {
+      if (result.id) entry.id = result.id;
+      if (result.timestamp) entry.timestamp = result.timestamp;
+      cachedEntries.push(entry);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error(e);
+    return false;
+  } finally {
+    hideLoading();
+  }
+}
+
+function entryKey(e) {
+  return e.id || e.timestamp || (e.date + '|' + (e.grandTotal || 0));
+}
+
+async function deleteEntryFromSheet(entry) {
+  const url = getApiUrl();
+  if (!url) return false;
+  const payload = { action: 'delete' };
+  if (entry.id) payload.id = entry.id;
+  if (entry.timestamp) payload.timestamp = entry.timestamp;
+  if (entry.date) payload.date = entry.date;
+  showLoading('Deleting…');
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    const result = await r.json();
+    if (result.success) {
+      const key = entryKey(entry);
+      cachedEntries = cachedEntries.filter(e => entryKey(e) !== key);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error(e);
+    return false;
+  } finally {
+    hideLoading();
+  }
+}
+
+// ===== MATH =====
+function round(v) { return Math.round((parseFloat(v) || 0) * 100) / 100; }
+
+/**
+ * Float + split calculation for one category.
+ * floatOwedIn = amount still owed into float from prior collections (>= 0)
+ * Returns net after float; MGD/SS/CL on net only.
+ */
+function calcCategory(gross, rate, hasFloat, floatRequired, floatOwedIn) {
+  gross = parseFloat(gross) || 0;
+  rate = parseFloat(rate);
+  if (isNaN(rate)) rate = 0.5;
+  floatRequired = hasFloat ? (parseFloat(floatRequired) || 0) : 0;
+  floatOwedIn = hasFloat ? (parseFloat(floatOwedIn) || 0) : 0;
+  if (floatRequired < 0) floatRequired = 0;
+  if (floatOwedIn < 0) floatOwedIn = 0;
+
+  const toRecover = hasFloat ? (floatRequired + floatOwedIn) : 0;
+  const floatTaken = Math.min(gross, toRecover);
+  const net = gross - floatTaken;
+  const floatOwedAfter = toRecover - floatTaken;
+
+  const mgd = net * MGD_RATE;
+  const cashLeft = net * rate;
+  const supplierShare = net - cashLeft;
+
+  return {
+    gross: round(gross),
+    floatTaken: round(floatTaken),
+    floatOwedIn: round(floatOwedIn),
+    floatOwedAfter: round(floatOwedAfter),
+    net: round(net),
+    total: round(net),
+    mgd: round(mgd),
+    cashLeft: round(cashLeft),
+    supplierShare: round(supplierShare)
+  };
+}
+
+function calcPool(poolGross, poolRent) {
+  const g = parseFloat(poolGross) || 0;
+  const rent = parseFloat(poolRent) || 0;
+  let poolSS, poolCL;
+  if (rent > 0) {
+    poolSS = Math.min(rent, g);
+    poolCL = g - poolSS;
+  } else {
+    poolSS = g * 0.5;
+    poolCL = g * 0.5;
+  }
+  return { poolGross: round(g), poolSS: round(poolSS), poolCL: round(poolCL) };
+}
+
+/** Outstanding float owed for locationId+categoryId before a given date/timestamp */
+function getFloatOwedIn(locId, catId, beforeDate, beforeTs) {
+  const entries = getEntries()
+    .filter(e => e.date && e.locations)
+    .sort((a, b) => {
+      const d = a.date.localeCompare(b.date);
+      if (d) return d;
+      return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+    });
+
+  let owed = 0;
+  for (const e of entries) {
+    if (beforeDate) {
+      if (e.date > beforeDate) break;
+      if (e.date === beforeDate && beforeTs && String(e.timestamp || '') >= String(beforeTs)) break;
+    }
+    const loc = (e.locations || []).find(l => l.id === locId || l.name === locId);
+    if (!loc) continue;
+    const cat = (loc.categories || []).find(c => c.id === catId || c.name === catId);
+    if (!cat) continue;
+    if (cat.floatOwedAfter != null) owed = parseFloat(cat.floatOwedAfter) || 0;
+  }
+  return owed;
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+// ===== RENDER FORM =====
+function renderForm() {
+  const container = document.getElementById('formContainer');
+  const dateEl = document.getElementById('entryDate');
+  if (!dateEl.value) dateEl.value = todayStr();
+  const date = dateEl.value;
+
+  if (!config.locations.length) {
+    container.innerHTML = '<div class="empty-state"><p>No sites configured. Add sites in Settings.</p></div>';
+    return;
+  }
+
+  let html = '';
+  for (const loc of config.locations) {
+    html += `<div class="table-scroll"><table class="tbl entry-table"><thead>
+      <tr class="loc-header-row"><th colspan="5" class="loc-header">${esc(loc.name)}</th></tr>
+      <tr><th>Category</th><th>Gross (£)</th><th>Float</th><th>Net</th><th>Split</th></tr>
+    </thead><tbody>`;
+
+    for (const cat of loc.categories) {
+      const fid = fieldId(loc, cat);
+      const owed = getFloatOwedIn(loc.id, cat.id, date, null);
+      const floatNote = cat.hasFloat
+        ? (owed > 0
+          ? `<span class="float-owed">Owed £${owed.toFixed(2)} + req £${(cat.floatRequired||0).toFixed(2)}</span>`
+          : `<span style="font-size:10px;color:#888">Req £${(cat.floatRequired||0).toFixed(2)}</span>`)
+        : '<span style="font-size:10px;color:#bbb">—</span>';
+      html += `<tr>
+        <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${(cat.rate*100).toFixed(0)}/${((1-cat.rate)*100).toFixed(0)}</span></td>
+        <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
+        <td id="float_${fid}">${floatNote}</td>
+        <td class="ro net-val" id="net_${fid}">0.00</td>
+        <td style="font-size:11px" id="split_${fid}">—</td>
+      </tr>`;
+    }
+
+    if (loc.hasPool) {
+      const lid = loc.id;
+      html += `<tr>
+        <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${loc.poolRent > 0 ? 'Rent £'+loc.poolRent : '50/50'}</span></td>
+        <td><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
+        <td style="font-size:10px;color:#bbb">n/a</td>
+        <td class="ro" id="pool_net_${lid}">0.00</td>
+        <td style="font-size:11px" id="pool_split_${lid}">—</td>
+      </tr>`;
+    }
+
+    html += `</tbody><tfoot><tr><td colspan="5" class="loc-summary"><div class="loc-summary-inner">
+      <span><span class="ls-lbl">Net:</span> <span id="loc_net_${loc.id}">0.00</span></span>
+      <span><span class="ls-lbl">MGD:</span> <span id="loc_mgd_${loc.id}">0.00</span></span>
+      <span><span class="ls-lbl">Supp:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
+      <span><span class="ls-lbl">Cash Left:</span> <span id="loc_cl_${loc.id}">0.00</span></span>
+      <span><span class="ls-lbl">Float taken:</span> <span id="loc_ft_${loc.id}">0.00</span></span>
+    </div></td></tr></tfoot></table></div>`;
+  }
+
+  html += `<div class="table-scroll"><table class="tbl"><thead>
+    <tr><th colspan="5" style="background:#1a1a2e;color:#fff">Collection totals</th></tr>
+    <tr><th>Location</th><th>Net</th><th>MGD</th><th>Supplier</th><th>Cash Left</th></tr>
+  </thead><tbody id="gtBody"></tbody>
+  <tfoot><tr style="font-weight:700;background:#fff8e6">
+    <td>TOTAL</td>
+    <td class="ro" id="g_net">0.00</td>
+    <td class="ro" id="g_mgd">0.00</td>
+    <td class="ro" id="g_ss">0.00</td>
+    <td class="ro" id="g_cl">0.00</td>
+  </tr></tfoot></table></div>`;
+
+  container.innerHTML = html;
+  updateFormCalcs();
+}
+
+function fieldId(loc, cat) {
+  return (loc.id + '_' + cat.id).replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updateFormCalcs() {
+  const date = document.getElementById('entryDate').value || todayStr();
+  let gNet = 0, gMgd = 0, gSs = 0, gCl = 0;
+  let gtHtml = '';
+
+  for (const loc of config.locations) {
+    let locNet = 0, locMgd = 0, locSs = 0, locCl = 0, locFt = 0;
+
+    for (const cat of loc.categories) {
+      const fid = fieldId(loc, cat);
+      const gross = parseFloat(document.getElementById('gross_' + fid)?.value) || 0;
+      const owed = getFloatOwedIn(loc.id, cat.id, date, null);
+      const r = calcCategory(gross, cat.rate, cat.hasFloat, cat.floatRequired, owed);
+
+      const netEl = document.getElementById('net_' + fid);
+      const splitEl = document.getElementById('split_' + fid);
+      const floatEl = document.getElementById('float_' + fid);
+      if (netEl) netEl.textContent = r.net.toFixed(2);
+      if (splitEl) splitEl.innerHTML = `MGD £${r.mgd.toFixed(2)}<br>SS £${r.supplierShare.toFixed(2)}<br>CL £${r.cashLeft.toFixed(2)}`;
+      if (floatEl && cat.hasFloat) {
+        floatEl.innerHTML = r.floatTaken > 0 || owed > 0
+          ? `−£${r.floatTaken.toFixed(2)}` + (r.floatOwedAfter > 0 ? `<br><span class="float-owed">carry £${r.floatOwedAfter.toFixed(2)}</span>` : '')
+          : `<span style="font-size:10px;color:#888">Req £${(cat.floatRequired||0).toFixed(2)}</span>`;
+      }
+
+      locNet += r.net; locMgd += r.mgd; locSs += r.supplierShare; locCl += r.cashLeft; locFt += r.floatTaken;
+    }
+
+    if (loc.hasPool) {
+      const g = parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0;
+      const p = calcPool(g, loc.poolRent);
+      const pn = document.getElementById('pool_net_' + loc.id);
+      const ps = document.getElementById('pool_split_' + loc.id);
+      if (pn) pn.textContent = p.poolGross.toFixed(2);
+      if (ps) ps.innerHTML = `SS £${p.poolSS.toFixed(2)}<br>CL £${p.poolCL.toFixed(2)}`;
+      locNet += p.poolGross; locSs += p.poolSS; locCl += p.poolCL;
+    }
+
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = round(v).toFixed(2); };
+    set('loc_net_' + loc.id, locNet);
+    set('loc_mgd_' + loc.id, locMgd);
+    set('loc_ss_' + loc.id, locSs);
+    set('loc_cl_' + loc.id, locCl);
+    set('loc_ft_' + loc.id, locFt);
+
+    gtHtml += `<tr><td>${esc(loc.name)}</td><td class="ro">${round(locNet).toFixed(2)}</td><td class="ro">${round(locMgd).toFixed(2)}</td><td class="ro">${round(locSs).toFixed(2)}</td><td class="ro">${round(locCl).toFixed(2)}</td></tr>`;
+    gNet += locNet; gMgd += locMgd; gSs += locSs; gCl += locCl;
+  }
+
+  const gb = document.getElementById('gtBody');
+  if (gb) gb.innerHTML = gtHtml;
+  const setg = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = round(v).toFixed(2); };
+  setg('g_net', gNet); setg('g_mgd', gMgd); setg('g_ss', gSs); setg('g_cl', gCl);
+}
+
+// ===== SUBMIT =====
+async function submitEntry() {
+  const date = document.getElementById('entryDate').value;
+  if (!date) { showMsg('submitMsg', 'Select a date', 'error'); return; }
+  if (!config.locations.length) { showMsg('submitMsg', 'No sites configured', 'error'); return; }
+
+  const ts = new Date().toISOString();
+  const entry = { date, timestamp: ts, id: ts, locations: [], grandTotal: 0, grandCL: 0, grandMGD: 0, grandSS: 0, grandFloat: 0 };
+
+  for (const loc of config.locations) {
+    const locData = { id: loc.id, name: loc.name, categories: [] };
+    for (const cat of loc.categories) {
+      const fid = fieldId(loc, cat);
+      const gross = parseFloat(document.getElementById('gross_' + fid)?.value) || 0;
+      const owed = getFloatOwedIn(loc.id, cat.id, date, null);
+      const r = calcCategory(gross, cat.rate, cat.hasFloat, cat.floatRequired, owed);
+      locData.categories.push({
+        id: cat.id, name: cat.name, rate: cat.rate,
+        hasFloat: !!cat.hasFloat, floatRequired: cat.floatRequired || 0,
+        cash: r.gross, gross: r.gross,
+        floatTaken: r.floatTaken, floatOwedIn: r.floatOwedIn, floatOwedAfter: r.floatOwedAfter,
+        net: r.net, total: r.net, mgd: r.mgd, cashLeft: r.cashLeft, supplierShare: r.supplierShare
+      });
+      entry.grandTotal += r.net;
+      entry.grandCL += r.cashLeft;
+      entry.grandMGD += r.mgd;
+      entry.grandSS += r.supplierShare;
+      entry.grandFloat += r.floatTaken;
+    }
+    if (loc.hasPool) {
+      const g = parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0;
+      const p = calcPool(g, loc.poolRent);
+      locData.poolGross = p.poolGross;
+      locData.poolRent = loc.poolRent || 0;
+      locData.poolSS = p.poolSS;
+      locData.poolCL = p.poolCL;
+      entry.grandTotal += p.poolGross;
+      entry.grandCL += p.poolCL;
+      entry.grandSS += p.poolSS;
+    }
+    entry.locations.push(locData);
+  }
+
+  entry.grandTotal = round(entry.grandTotal);
+  entry.grandCL = round(entry.grandCL);
+  entry.grandMGD = round(entry.grandMGD);
+  entry.grandSS = round(entry.grandSS);
+  entry.grandFloat = round(entry.grandFloat);
+
+  showMsg('submitMsg', 'Saving…', 'success');
+  const ok = await saveEntry(entry);
+  if (ok) {
+    showMsg('submitMsg', `Saved ${date}`, 'success');
+    resetForm();
+  } else {
+    showMsg('submitMsg', 'Save failed — check API URL', 'error');
+  }
+  updateHistoryCount();
+  render21DayTotals();
+}
+
+function resetForm() {
+  renderForm();
+  document.getElementById('entryDate').value = todayStr();
+}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'msg ' + (type || '');
+  setTimeout(() => { el.className = 'msg'; }, 3500);
+}
+
+// ===== 21 DAY TOTALS =====
+function render21DayTotals() {
+  const el = document.getElementById('totals21Container');
+  if (!el) return;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 21);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const recent = getEntries().filter(e => e.date >= cutoffStr);
+
+  const locTotals = {};
+  for (const loc of config.locations) {
+    locTotals[loc.id] = { name: loc.name, net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+  }
+
+  for (const e of recent) {
+    for (const loc of e.locations || []) {
+      const key = loc.id || loc.name;
+      let t = locTotals[key];
+      if (!t) {
+        // match by name
+        const cfg = config.locations.find(l => l.name === loc.name);
+        t = cfg ? locTotals[cfg.id] : null;
+        if (!t) {
+          locTotals[key] = { name: loc.name, net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+          t = locTotals[key];
+        }
+      }
+      for (const cat of loc.categories || []) {
+        const net = cat.net != null ? cat.net : (cat.total || cat.cash || 0);
+        t.net += net;
+        t.mgd += cat.mgd || (net * MGD_RATE);
+        t.ss += cat.supplierShare || 0;
+        t.cl += cat.cashLeft || 0;
+        t.float += cat.floatTaken || 0;
+      }
+      if (loc.poolGross) {
+        t.net += loc.poolGross;
+        t.ss += loc.poolSS || 0;
+        t.cl += loc.poolCL || 0;
+      }
+    }
+  }
+
+  let html = `<div class="table-scroll"><table class="tbl"><thead>
+    <tr><th colspan="5" style="background:#1a1a2e;color:#fff">Last 21 Days — Totals</th></tr>
+    <tr><th>Location</th><th>Net</th><th>MGD</th><th>Supplier Share</th><th>Cash Left</th></tr>
+  </thead><tbody>`;
+  let tn = 0, tm = 0, ts = 0, tc = 0;
+  for (const t of Object.values(locTotals)) {
+    html += `<tr><td>${esc(t.name)}</td><td class="ro">£${t.net.toFixed(2)}</td><td class="ro">£${t.mgd.toFixed(2)}</td><td class="ro">£${t.ss.toFixed(2)}</td><td class="ro">£${t.cl.toFixed(2)}</td></tr>`;
+    tn += t.net; tm += t.mgd; ts += t.ss; tc += t.cl;
+  }
+  html += `<tr style="font-weight:700;background:#fff8e6"><td>${recent.length} collections</td>
+    <td class="ro">£${tn.toFixed(2)}</td><td class="ro">£${tm.toFixed(2)}</td><td class="ro">£${ts.toFixed(2)}</td><td class="ro">£${tc.toFixed(2)}</td></tr>
+  </tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+// ===== HISTORY =====
+function showHistory() {
+  const entries = getEntries();
+  const container = document.getElementById('historyTable');
+  updateHistoryCount();
+  if (!entries.length) {
+    container.innerHTML = '<div class="empty-state"><p>No submissions yet.</p></div>';
+    return;
+  }
+  const sorted = [...entries].sort((a, b) => {
+    const d = b.date.localeCompare(a.date);
+    return d || String(b.timestamp || '').localeCompare(String(a.timestamp || ''));
+  });
+  let html = `<div class="table-scroll"><table class="tbl"><thead><tr>
+    <th>Date</th><th>Submitted</th><th>Net Total</th><th>Cash Left</th><th>Float</th><th></th>
+  </tr></thead><tbody>`;
+  for (const e of sorted) {
+    const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
+    const key = entryKey(e).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    html += `<tr>
+      <td>${esc(e.date)}</td>
+      <td>${esc(ts)}</td>
+      <td class="ro">£${(e.grandTotal || 0).toFixed(2)}</td>
+      <td class="ro">£${(e.grandCL || 0).toFixed(2)}</td>
+      <td class="ro">£${(e.grandFloat || 0).toFixed(2)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteEntryByKey('${key}')">Delete</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function updateHistoryCount() {
+  const el = document.getElementById('historyCount');
+  if (el) el.textContent = getEntries().length + ' entries';
+}
+
+async function deleteEntryByKey(key) {
+  const entry = getEntries().find(e => entryKey(e) === key);
+  if (!entry) return;
+  if (!confirm('Delete entry for ' + entry.date + '?')) return;
+  await deleteEntryFromSheet(entry);
+  showHistory();
+  updateHistoryCount();
+  render21DayTotals();
+}
+
+async function deleteLastSubmission() {
+  const entries = getEntries();
+  if (!entries.length) {
+    showMsg('deleteLastMsg', 'No entries', 'error');
+    return;
+  }
+  const last = [...entries].sort((a, b) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')))[0];
+  if (!confirm('Delete most recent (' + last.date + ')?')) return;
+  await deleteEntryFromSheet(last);
+  showMsg('deleteLastMsg', 'Deleted ' + last.date, 'success');
+  updateHistoryCount();
+  render21DayTotals();
+}
+
+async function clearHistory() {
+  if (!confirm('Delete ALL entries?')) return;
+  const url = getApiUrl();
+  if (url) {
+    showLoading('Clearing…');
+    try {
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'clear' }) });
+    } catch (e) {}
+    hideLoading();
+  }
+  cachedEntries = [];
+  showHistory();
+  render21DayTotals();
+}
+
+// ===== MONTHLY =====
+function applyRangeFilter() {
+  const val = document.querySelector('input[name="range"]:checked')?.value;
+  if (!val || val === 'all') {
+    document.getElementById('filterFrom').value = '';
+    document.getElementById('filterTo').value = '';
+  } else {
+    const months = parseInt(val, 10);
+    const d = new Date();
+    document.getElementById('filterTo').value = todayStr();
+    d.setMonth(d.getMonth() - months);
+    document.getElementById('filterFrom').value = d.toISOString().slice(0, 10);
+  }
+  showMonthlySummary();
+}
+function clearRangeRadios() {
+  document.querySelectorAll('input[name="range"]').forEach(r => r.checked = false);
+}
+
+function showMonthlySummary() {
+  const fromVal = document.getElementById('filterFrom').value;
+  const toVal = document.getElementById('filterTo').value;
+  let filtered = getEntries();
+  if (fromVal) filtered = filtered.filter(e => e.date >= fromVal);
+  if (toVal) filtered = filtered.filter(e => e.date <= toVal);
+  filtered.sort((a, b) => a.date.localeCompare(b.date));
+  _monthlyFiltered = filtered;
+  const label = fromVal || toVal ? `${fromVal || '…'} to ${toVal || '…'}` : 'All time';
+
+  if (!filtered.length) {
+    document.getElementById('monthlySummary').innerHTML = '<div class="empty-state"><p>No entries for this period.</p></div>';
+    return;
+  }
+
+  let totalGrand = 0, totalCL = 0, totalSS = 0, totalMGD = 0, totalFloat = 0;
+  const locTotals = {};
+
+  for (const e of filtered) {
+    totalGrand += e.grandTotal || 0;
+    totalCL += e.grandCL || 0;
+    totalSS += e.grandSS || 0;
+    totalMGD += e.grandMGD || 0;
+    totalFloat += e.grandFloat || 0;
+    for (const loc of e.locations || []) {
+      const name = loc.name;
+      if (!locTotals[name]) locTotals[name] = { net: 0, mgd: 0, ss: 0, cl: 0, float: 0 };
+      for (const cat of loc.categories || []) {
+        const net = cat.net != null ? cat.net : (cat.total || 0);
+        locTotals[name].net += net;
+        locTotals[name].mgd += cat.mgd || 0;
+        locTotals[name].ss += cat.supplierShare || 0;
+        locTotals[name].cl += cat.cashLeft || 0;
+        locTotals[name].float += cat.floatTaken || 0;
+      }
+      if (loc.poolGross) {
+        locTotals[name].net += loc.poolGross;
+        locTotals[name].ss += loc.poolSS || 0;
+        locTotals[name].cl += loc.poolCL || 0;
+      }
+    }
+  }
+
+  let html = `<div class="summary-card">
+    <div class="kpi"><div class="val">${filtered.length}</div><div class="lbl">Collections (${label})</div></div>
+    <div class="kpi"><div class="val">£${totalGrand.toFixed(2)}</div><div class="lbl">Net Total</div></div>
+    <div class="kpi"><div class="val">£${totalCL.toFixed(2)}</div><div class="lbl">Cash Left</div></div>
+    <div class="kpi"><div class="val">£${totalSS.toFixed(2)}</div><div class="lbl">Supplier Share</div></div>
+    <div class="kpi"><div class="val">£${totalFloat.toFixed(2)}</div><div class="lbl">Float Taken</div></div>
+  </div>`;
+
+  html += `<div style="margin-top:12px"><h2>Totals per Location</h2><div class="table-scroll"><table class="tbl"><thead><tr>
+    <th>Location</th><th>Net</th><th>MGD</th><th>Supplier</th><th>Cash Left</th><th></th>
+  </tr></thead><tbody>`;
+  for (const [name, v] of Object.entries(locTotals)) {
+    html += `<tr><td>${esc(name)}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td>
+      <td><button class="btn btn-sm" onclick="viewLocationTotals('${esc(name).replace(/'/g,"\\'")}')">View</button></td></tr>`;
+  }
+  html += `</tbody></table></div></div>`;
+
+  // Monthly breakdown
+  const monthlyMap = {};
+  for (const e of filtered) {
+    const m = e.date.substring(0, 7);
+    if (!monthlyMap[m]) monthlyMap[m] = { count: 0, grand: 0, cl: 0, ss: 0, float: 0 };
+    monthlyMap[m].count++;
+    monthlyMap[m].grand += e.grandTotal || 0;
+    monthlyMap[m].cl += e.grandCL || 0;
+    monthlyMap[m].ss += e.grandSS || 0;
+    monthlyMap[m].float += e.grandFloat || 0;
+  }
+  html += `<div style="margin-top:16px"><h2>Monthly Breakdown</h2><div class="table-scroll"><table class="tbl"><thead><tr>
+    <th>Month</th><th>Collections</th><th>Net</th><th>Supplier</th><th>Cash Left</th><th>Float</th><th></th>
+  </tr></thead><tbody>`;
+  for (const [m, v] of Object.entries(monthlyMap).sort()) {
+    html += `<tr><td>${m}</td><td>${v.count}</td><td class="ro">£${v.grand.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td><td class="ro">£${v.float.toFixed(2)}</td>
+      <td><button class="btn btn-sm" onclick="viewMonth('${m}')">View</button></td></tr>`;
+  }
+  html += '</tbody></table></div></div>';
+
+  document.getElementById('monthlySummary').innerHTML = html;
+}
+
+function viewMonth(month) {
+  const entries = getEntries().filter(e => e.date.substring(0, 7) === month).sort((a, b) => a.date.localeCompare(b.date));
+  document.getElementById('monthModalTitle').textContent = month;
+  let html = '';
+  for (const e of entries) {
+    html += `<div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:12px"><h3>${esc(e.date)}</h3>
+      <table class="tbl"><thead><tr><th>Location</th><th>Category</th><th>Gross</th><th>Float</th><th>Net</th><th>SS</th><th>CL</th></tr></thead><tbody>`;
+    for (const loc of e.locations || []) {
+      for (const cat of loc.categories || []) {
+        html += `<tr><td>${esc(loc.name)}</td><td>${esc(cat.name)}</td>
+          <td class="ro">£${(cat.gross ?? cat.cash ?? 0).toFixed(2)}</td>
+          <td class="ro">£${(cat.floatTaken || 0).toFixed(2)}</td>
+          <td class="ro">£${(cat.net ?? cat.total ?? 0).toFixed(2)}</td>
+          <td class="ro">£${(cat.supplierShare || 0).toFixed(2)}</td>
+          <td class="ro">£${(cat.cashLeft || 0).toFixed(2)}</td></tr>`;
+      }
+      if (loc.poolGross) {
+        html += `<tr><td>${esc(loc.name)}</td><td>Pool</td><td class="ro">£${loc.poolGross.toFixed(2)}</td><td class="ro">—</td>
+          <td class="ro">£${loc.poolGross.toFixed(2)}</td><td class="ro">£${(loc.poolSS||0).toFixed(2)}</td><td class="ro">£${(loc.poolCL||0).toFixed(2)}</td></tr>`;
+      }
+    }
+    html += `<tr style="font-weight:700;background:#fff8e6"><td colspan="4">TOTAL</td><td class="ro">£${(e.grandTotal||0).toFixed(2)}</td><td class="ro">£${(e.grandSS||0).toFixed(2)}</td><td class="ro">£${(e.grandCL||0).toFixed(2)}</td></tr>`;
+    html += '</tbody></table></div>';
+  }
+  document.getElementById('monthModalEntries').innerHTML = html || '<p>No entries</p>';
+  document.getElementById('monthModal').classList.add('active');
+}
+
+function viewLocationTotals(locName) {
+  const entries = _monthlyFiltered;
+  document.getElementById('monthModalTitle').textContent = locName + ' — monthly';
+  const monthData = {};
+  for (const e of entries) {
+    const loc = (e.locations || []).find(l => l.name === locName);
+    if (!loc) continue;
+    const m = e.date.substring(0, 7);
+    if (!monthData[m]) monthData[m] = { net: 0, mgd: 0, ss: 0, cl: 0 };
+    for (const cat of loc.categories || []) {
+      const net = cat.net != null ? cat.net : (cat.total || 0);
+      monthData[m].net += net;
+      monthData[m].mgd += cat.mgd || 0;
+      monthData[m].ss += cat.supplierShare || 0;
+      monthData[m].cl += cat.cashLeft || 0;
+    }
+    if (loc.poolGross) {
+      monthData[m].net += loc.poolGross;
+      monthData[m].ss += loc.poolSS || 0;
+      monthData[m].cl += loc.poolCL || 0;
+    }
+  }
+  let html = `<table class="tbl"><thead><tr><th>Month</th><th>Net</th><th>MGD</th><th>Supplier</th><th>Cash Left</th></tr></thead><tbody>`;
+  for (const [m, v] of Object.entries(monthData).sort()) {
+    html += `<tr><td>${m}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('monthModalEntries').innerHTML = html;
+  document.getElementById('monthModal').classList.add('active');
+}
+
+function closeMonthModal() {
+  document.getElementById('monthModal').classList.remove('active');
+}
+
+// ===== SETTINGS CRUD =====
+function renderSettings() {
+  document.getElementById('apiUrlInput').value = getApiUrl();
+  const container = document.getElementById('settingsContainer');
+  let html = '';
+  config.locations.forEach((loc, li) => {
+    html += `<div class="settings-card" data-li="${li}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="flex:1">Site name<br><input type="text" value="${esc(loc.name)}" onchange="config.locations[${li}].name=this.value"></label>
+        <button class="btn btn-danger btn-sm" onclick="removeLocation(${li})">Remove site</button>
+      </div>
+      <label style="margin-top:10px"><input type="checkbox" ${loc.hasPool ? 'checked' : ''} onchange="config.locations[${li}].hasPool=this.checked;renderSettings()"> Has pool</label>
+      ${loc.hasPool ? `<label>Pool rent (£, 0 = 50/50)<br><input type="number" min="0" step="1" value="${loc.poolRent||0}" onchange="config.locations[${li}].poolRent=parseFloat(this.value)||0"></label>` : ''}
+      <h3 style="margin-top:12px">Categories</h3>
+      <p class="hint">Rate = cash-left share (0.6 = 60% CL / 40% supplier). Float never applies to pool.</p>`;
+
+    loc.categories.forEach((cat, ci) => {
+      html += `<div class="cat-row">
+        <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="config.locations[${li}].categories[${ci}].name=this.value"></label>
+        <label>Rate (CL)<br><input type="number" min="0" max="1" step="0.01" value="${cat.rate}" onchange="config.locations[${li}].categories[${ci}].rate=parseFloat(this.value)||0.5"></label>
+        <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="config.locations[${li}].categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
+        <label>Float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="config.locations[${li}].categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
+        <button class="btn btn-danger btn-sm" onclick="removeCategory(${li},${ci})">×</button>
+      </div>`;
+    });
+    html += `<button class="btn btn-sm" style="margin-top:6px" onclick="addCategory(${li})">+ Category</button></div>`;
+  });
+  if (!config.locations.length) {
+    html = '<div class="empty-state"><p>No sites yet. Click “Add Site”.</p></div>';
+  }
+  container.innerHTML = html;
+}
+
+function addLocation() {
+  config.locations.push({
+    id: uid(),
+    name: 'New Site',
+    hasPool: false,
+    poolRent: 0,
+    categories: [
+      { id: uid(), name: 'Reels', rate: 0.6, hasFloat: false, floatRequired: 0 },
+      { id: uid(), name: 'Digital', rate: 0.5, hasFloat: false, floatRequired: 0 }
+    ]
+  });
+  renderSettings();
+}
+
+function removeLocation(li) {
+  if (!confirm('Remove site "' + config.locations[li].name + '" and its categories?')) return;
+  config.locations.splice(li, 1);
+  renderSettings();
+}
+
+function addCategory(li) {
+  config.locations[li].categories.push({
+    id: uid(), name: 'New', rate: 0.5, hasFloat: false, floatRequired: 0
+  });
+  renderSettings();
+}
+
+function removeCategory(li, ci) {
+  config.locations[li].categories.splice(ci, 1);
+  renderSettings();
+}
+
+async function saveSettings() {
+  // sanitize
+  config = migrateConfig(config);
+  saveConfigLocal();
+  const ok = await saveConfigToSheet();
+  const el = document.getElementById('settingsMsg');
+  if (ok) {
+    el.textContent = 'Saved to Google Sheet';
+    el.className = 'msg success';
+  } else if (!getApiUrl()) {
+    el.textContent = 'Saved locally only — set API URL';
+    el.className = 'msg error';
+  } else {
+    el.textContent = 'Local save OK; sheet sync failed — redeploy Code.gs?';
+    el.className = 'msg error';
+  }
+  setTimeout(() => el.className = 'msg', 4000);
+  renderForm();
+  render21DayTotals();
+}
+
+function saveApiUrl() {
+  const url = document.getElementById('apiUrlInput').value.trim();
+  setApiUrl(url);
+  showMsg('apiUrlMsg', 'API URL saved', 'success');
+  loadEntries().then(() => {
+    updateHistoryCount();
+    renderForm();
+    render21DayTotals();
+  });
+}
+
+// ===== EXPORT =====
+function exportCSV() {
+  const entries = getEntries();
+  if (!entries.length) { alert('No entries'); return; }
+  const rows = [['Date', 'Location', 'Category', 'Gross', 'Float Taken', 'Float Owed After', 'Net', 'MGD', 'Supplier', 'Cash Left']];
+  for (const e of [...entries].sort((a, b) => a.date.localeCompare(b.date))) {
+    for (const loc of e.locations || []) {
+      for (const cat of loc.categories || []) {
+        rows.push([
+          e.date, loc.name, cat.name,
+          cat.gross ?? cat.cash ?? 0,
+          cat.floatTaken || 0,
+          cat.floatOwedAfter || 0,
+          cat.net ?? cat.total ?? 0,
+          cat.mgd || 0,
+          cat.supplierShare || 0,
+          cat.cashLeft || 0
+        ]);
+      }
+      if (loc.poolGross) {
+        rows.push([e.date, loc.name, 'Pool', loc.poolGross, 0, 0, loc.poolGross, 0, loc.poolSS || 0, loc.poolCL || 0]);
+      }
+    }
+  }
+  const csv = rows.map(r => r.map(v => typeof v === 'string' && v.includes(',') ? '"' + v + '"' : v).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '3lemons_export_' + todayStr() + '.csv';
+  a.click();
+}
+
+// ===== NAV / LOGIN =====
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector(`.nav a[onclick*="${name}"]`)?.classList.add('active');
+  if (name === 'history') showHistory();
+  if (name === 'monthly') showMonthlySummary();
+  if (name === 'settings') renderSettings();
+  if (name === 'entry') { renderForm(); render21DayTotals(); }
+}
+
+function doLogin() {
+  const pwd = document.getElementById('loginPwd').value;
+  if (pwd !== APP_PASSWORD) {
+    document.getElementById('loginError').style.display = 'block';
+    return;
+  }
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginOverlay').classList.add('hidden');
+  sessionStorage.setItem('3l_logged_in', '1');
+  const url = getApiUrl();
+  if (url) {
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'login', timestamp: new Date().toISOString() })
+    }).catch(() => {});
+  }
+}
+
+// ===== INIT =====
+loadConfigLocal();
+renderForm();
+loadEntries().then(() => {
+  updateHistoryCount();
+  renderForm();
+  render21DayTotals();
+});
+
+// Recalc float carry when date changes
+document.getElementById('entryDate').addEventListener('change', () => {
+  renderForm();
+});
+</script>
+</body>
+</html>
