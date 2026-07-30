@@ -1604,7 +1604,7 @@ function showPage(name) {
 
 async function doLogin() {
   const pwd = document.getElementById('loginPwd').value;
-  if (pwd !== APP_PASSWORD) {
+  if (String(pwd || '').toLowerCase() !== String(APP_PASSWORD).toLowerCase()) {
     document.getElementById('loginError').style.display = 'block';
     return;
   }
