@@ -40,7 +40,7 @@ Optional backfill of old Data rows: in Apps Script, run function `backfillMaster
 - `toRecover = floatRequired + floatOwed (carry-in)`  
 - `floatTaken = min(gross, toRecover)`  
 - `net = gross − floatTaken`  
-- MGD / rate splits on **net** only  
+- MGD / rate splits on **net** only (cash left % vs supplier % in Settings)  
 - `floatOwedAfter` carries to the next collection for that **location + category**  
 - Pool: no float (rent or 50/50 as configured)  
 

@@ -50,9 +50,10 @@ h3{font-size:14px;margin:0 0 8px}
   padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-top:2px;max-width:100%
 }
 .settings-card input[type=checkbox]{margin-right:6px;transform:scale(1.15)}
-.cat-row{display:grid;grid-template-columns:1fr 90px 70px 110px auto;gap:8px;align-items:end;margin:8px 0;padding:8px;background:#f8f8fa;border-radius:8px}
+.cat-row{display:grid;grid-template-columns:1fr 90px 1fr 70px 110px auto;gap:8px;align-items:end;margin:8px 0;padding:8px;background:#f8f8fa;border-radius:8px}
 .cat-row label{margin:0;font-size:11px;color:#666}
 .cat-row input{width:100%;margin:0}
+.rate-summary{font-size:12px;font-weight:600;color:#1a1a2e;padding:6px 8px;background:#fff;border-radius:6px;border:1px solid #e8e8e8;text-align:center;line-height:1.35;min-height:38px;display:flex;align-items:center;justify-content:center}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .empty-state{text-align:center;padding:40px;color:#888}
 .login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e,#2d3436,#f7b73133);z-index:9999;display:flex;justify-content:center;align-items:center}
@@ -257,6 +258,10 @@ function migrateConfig(cfg) {
       c.id = c.id || uid();
       c.rate = parseFloat(c.rate);
       if (isNaN(c.rate)) c.rate = 0.5;
+      // Accept legacy % values (e.g. 60) and normalise to 0–1 share
+      if (c.rate > 1) c.rate = c.rate / 100;
+      if (c.rate < 0) c.rate = 0;
+      if (c.rate > 1) c.rate = 1;
       c.hasFloat = !!c.hasFloat;
       c.floatRequired = parseFloat(c.floatRequired) || 0;
     });
@@ -648,7 +653,7 @@ function renderForm() {
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
       html += `<tr>
-        <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${(cat.rate*100).toFixed(0)}/${((1-cat.rate)*100).toFixed(0)}</span></td>
+        <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">CL ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%</span></td>
         <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
         <td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
         <td style="font-size:11px" id="float_${fid}">—</td>
@@ -1214,12 +1219,15 @@ function renderSettings() {
   }
 
   html += `<h3 style="margin-top:12px">Categories</h3>
-    <p class="hint">Rate = cash-left share. Default float £ is a reference on daily entry (field starts empty). Pool never uses float.</p>`;
+    <p class="hint">Cash left % is your share of net (after float). Supplier gets the rest. Default float £ is a reference on daily entry (field starts empty). Pool never uses float.</p>`;
 
   (loc.categories || []).forEach((cat, ci) => {
+    const clPct = Math.round((parseFloat(cat.rate) || 0.5) * 100);
+    const ssPct = 100 - clPct;
     html += `<div class="cat-row">
       <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="draftSite.categories[${ci}].name=this.value"></label>
-      <label>Rate (CL)<br><input type="number" min="0" max="1" step="0.01" value="${cat.rate}" onchange="draftSite.categories[${ci}].rate=parseFloat(this.value)||0.5"></label>
+      <label>Cash left %<br><input type="number" min="0" max="100" step="1" value="${clPct}" oninput="onDraftRatePct(${ci}, this.value)" onchange="onDraftRatePct(${ci}, this.value)"></label>
+      <div class="rate-summary" id="draft_rate_sum_${ci}">CL ${clPct}% · Supplier ${ssPct}%</div>
       <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="draftSite.categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
       <label>Default float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="draftSite.categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
       <button class="btn btn-danger btn-sm" onclick="draftRemoveCategory(${ci})">×</button>
@@ -1271,6 +1279,20 @@ function renderSavedSitesList() {
   el.querySelectorAll('.btn-remove-site').forEach(btn => {
     btn.addEventListener('click', () => removeLocationById(btn.getAttribute('data-site-id')));
   });
+}
+
+function onDraftRatePct(ci, val) {
+  ensureDraft();
+  if (!draftSite.categories[ci]) return;
+  let pct = parseFloat(val);
+  if (isNaN(pct)) pct = 50;
+  pct = Math.max(0, Math.min(100, pct));
+  draftSite.categories[ci].rate = pct / 100;
+  const sum = document.getElementById('draft_rate_sum_' + ci);
+  if (sum) {
+    const ss = 100 - Math.round(pct);
+    sum.textContent = 'CL ' + Math.round(pct) + '% · Supplier ' + ss + '%';
+  }
 }
 
 function draftAddCategory() {
@@ -1363,16 +1385,20 @@ function readDraftFromDom() {
   if (nameEl) draftSite.name = nameEl.value.trim();
   const poolCb = document.getElementById('draft_hasPool');
   if (poolCb) draftSite.hasPool = poolCb.checked;
-  // categories already bound via onchange; re-read name/rate from inputs if present
+  // categories: name, cash left %, float?, default float
   const card = document.getElementById('siteDraftCard');
   if (card) {
     const rows = card.querySelectorAll('.cat-row');
     rows.forEach((row, ci) => {
       if (!draftSite.categories[ci]) return;
       const inputs = row.querySelectorAll('input');
-      // name, rate, float?, default float
       if (inputs[0]) draftSite.categories[ci].name = inputs[0].value.trim() || draftSite.categories[ci].name;
-      if (inputs[1]) draftSite.categories[ci].rate = parseFloat(inputs[1].value) || 0.5;
+      if (inputs[1]) {
+        let pct = parseFloat(inputs[1].value);
+        if (isNaN(pct)) pct = 50;
+        pct = Math.max(0, Math.min(100, pct));
+        draftSite.categories[ci].rate = pct / 100;
+      }
       if (inputs[2]) draftSite.categories[ci].hasFloat = inputs[2].checked;
       if (inputs[3] && !inputs[3].disabled) draftSite.categories[ci].floatRequired = parseFloat(inputs[3].value) || 0;
     });
