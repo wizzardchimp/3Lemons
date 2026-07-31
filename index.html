@@ -846,9 +846,13 @@ function renderForm() {
 
   if (loc.hasPool) {
     const lid = loc.id;
+    const poolMode = loc.poolMode || (parseFloat(loc.poolRent) > 0 ? 'rent' : 'fifty');
+    const grossCell = poolMode === 'rent'
+      ? `<span id="pool_${lid}">£${(parseFloat(loc.poolRent) || 0).toFixed(2)}</span>`
+      : `<input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross">`;
     html += `<tr>
       <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
-      <td><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
+      <td>${grossCell}</td>
       <td style="font-size:10px;color:#bbb">n/a</td>
       <td style="font-size:10px;color:#bbb">—</td>
       <td class="ro" id="pool_net_${lid}">0.00</td>
@@ -928,7 +932,10 @@ function updateFormCalcs() {
     }
 
     if (loc.hasPool) {
-      const g = parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0;
+      const poolMode = loc.poolMode || (parseFloat(loc.poolRent) > 0 ? 'rent' : 'fifty');
+      const g = poolMode === 'rent'
+        ? (parseFloat(loc.poolRent) || 0)
+        : (parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0);
       const p = calcPool(g, loc);
       const pn = document.getElementById('pool_net_' + loc.id);
       const ps = document.getElementById('pool_split_' + loc.id);
@@ -986,7 +993,10 @@ function buildEntryFromForm() {
       entry.grandFloat += r.floatTaken;
     }
     if (loc.hasPool) {
-      const g = parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0;
+      const poolMode = loc.poolMode || (parseFloat(loc.poolRent) > 0 ? 'rent' : 'fifty');
+      const g = poolMode === 'rent'
+        ? (parseFloat(loc.poolRent) || 0)
+        : (parseFloat(document.getElementById('pool_' + loc.id)?.value) || 0);
       const p = calcPool(g, loc);
       locData.poolGross = p.poolGross;
       locData.poolMode = loc.poolMode || 'fifty';
