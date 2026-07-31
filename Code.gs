@@ -1,4 +1,4 @@
-// 3Lemons — Google Apps Script backend
+// 3Bells — Google Apps Script backend
 // Tabs: Data (entries), Rates (config), LoginLog, MasterLog (append-only audit)
 const SHEET_NAME = 'Data';
 const SHEET_FALLBACKS = ['Sheet1', 'Entries'];

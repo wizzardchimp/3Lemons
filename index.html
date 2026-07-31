@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>3Lemons — Daily Takings</title>
+<title>3Bells — Daily Takings</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="favicon.svg">
 <meta name="theme-color" content="#1a1a2e">
@@ -171,8 +171,8 @@ h3{font-size:14px;margin:0 0 8px}
 
 <div id="loginOverlay" class="login-overlay">
   <div class="login-box">
-    <img class="login-logo" src="favicon.svg" alt="3Lemons">
-    <h1>3Lemons</h1>
+    <img class="login-logo" src="favicon.svg" alt="3Bells">
+    <h1>3Bells</h1>
     <p>Enter password to continue</p>
     <input type="password" id="loginPwd" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
     <div id="loginError" class="login-error">Incorrect password</div>
@@ -189,7 +189,7 @@ h3{font-size:14px;margin:0 0 8px}
 <div class="brand-bar">
   <img src="favicon.svg" alt="">
   <div>
-    <div class="brand-text">3Lemons</div>
+    <div class="brand-text">3Bells</div>
     <div class="brand-sub">Daily Takings</div>
   </div>
 </div>
@@ -2005,7 +2005,7 @@ function exportCSV() {
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = '3lemons_export_' + todayStr() + '.csv';
+  a.download = '3bells_export_' + todayStr() + '.csv';
   a.click();
 }
 

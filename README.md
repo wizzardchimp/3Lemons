@@ -1,4 +1,4 @@
-# 3Lemons — Daily Takings
+# 3Bells — Daily Takings
 
 New takings app (separate from BL) with:
 
