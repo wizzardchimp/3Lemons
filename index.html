@@ -214,10 +214,6 @@ h3{font-size:14px;margin:0 0 8px}
   <div id="sitePickerPanel"></div>
   <div id="entryFormPanel" class="hidden">
     <div id="formContainer"></div>
-    <div class="entry-actions" id="entryActions">
-      <button type="button" class="btn btn-primary" onclick="submitEntry()">Submit</button>
-      <button type="button" class="btn btn-outline" onclick="resetForm()">Reset</button>
-    </div>
   </div>
 </div>
 
@@ -876,6 +872,11 @@ function renderForm() {
     <span><span class="ls-lbl">Site Share:</span> <span id="loc_cl_${loc.id}">0.00</span></span>
     <span><span class="ls-lbl">Float taken:</span> <span id="loc_ft_${loc.id}">0.00</span></span>
   </div></td></tr></tfoot></table></div>`;
+
+  html += `<div class="entry-actions" id="entryActions">
+    <button type="button" class="btn btn-primary" onclick="submitEntry()">Submit</button>
+    <button type="button" class="btn btn-outline" onclick="resetForm()">Reset</button>
+  </div>`;
 
   html += `<div class="table-scroll"><table class="tbl"><thead>
     <tr><th colspan="5" style="background:#1a1a2e;color:#fff">Live Collection Totals</th></tr>
