@@ -205,7 +205,6 @@ h3{font-size:14px;margin:0 0 8px}
   <h1>Daily Takings</h1>
   <div id="totals21Container"></div>
   <div class="entry-site-bar hidden" id="entrySiteBar">
-    <button type="button" class="btn btn-outline btn-sm" id="backToSitesBtn" onclick="backToSitePicker()">← Sites</button>
     <div class="site-title" id="entrySiteTitle"></div>
   </div>
   <div class="form-header" id="entryDateBar">
@@ -881,6 +880,7 @@ function renderForm() {
   html += `<div class="entry-actions" id="entryActions">
     <button type="button" class="btn btn-primary" onclick="submitEntry()">Submit</button>
     <button type="button" class="btn btn-outline" onclick="resetForm()">Reset</button>
+    <button type="button" class="btn btn-outline" onclick="backToSitePicker()">← Back</button>
   </div>`;
 
   html += `<div class="table-scroll"><table class="tbl"><thead>
