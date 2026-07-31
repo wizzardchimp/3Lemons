@@ -72,7 +72,7 @@ function getMasterLogSheet() {
       'Net',
       'MGD',
       'Supplier',
-      'Cash Left'
+      'Site Share'
     ]);
     sheet.setFrozenRows(1);
   }

@@ -825,7 +825,7 @@ function renderForm() {
   for (const cat of loc.categories) {
     const fid = fieldId(loc, cat);
     html += `<tr>
-      <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">CL ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%</span></td>
+      <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%</span></td>
       <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
       <td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
       <td style="font-size:11px" id="float_${fid}">—</td>
@@ -849,14 +849,14 @@ function renderForm() {
   html += `</tbody><tfoot><tr><td colspan="6" class="loc-summary"><div class="loc-summary-inner">
     <span><span class="ls-lbl">Net:</span> <span id="loc_net_${loc.id}">0.00</span></span>
     <span><span class="ls-lbl">MGD:</span> <span id="loc_mgd_${loc.id}">0.00</span></span>
-    <span><span class="ls-lbl">Supp:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
-    <span><span class="ls-lbl">Cash Left:</span> <span id="loc_cl_${loc.id}">0.00</span></span>
+      <span><span class="ls-lbl">Supplier:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
+    <span><span class="ls-lbl">Site Share:</span> <span id="loc_cl_${loc.id}">0.00</span></span>
     <span><span class="ls-lbl">Float taken:</span> <span id="loc_ft_${loc.id}">0.00</span></span>
   </div></td></tr></tfoot></table></div>`;
 
   html += `<div class="table-scroll"><table class="tbl"><thead>
     <tr><th colspan="5" style="background:#1a1a2e;color:#fff">Live Collection Totals</th></tr>
-    <tr><th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Cash Left</th></tr>
+    <tr><th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Site Share</th></tr>
   </thead><tbody id="gtBody"></tbody>
   <tfoot><tr style="font-weight:700;background:#fff8e6">
     <td>TOTAL</td>
@@ -902,7 +902,7 @@ function updateFormCalcs() {
       const splitEl = document.getElementById('split_' + fid);
       const floatEl = document.getElementById('float_' + fid);
       if (netEl) netEl.textContent = r.net.toFixed(2);
-      if (splitEl) splitEl.innerHTML = `MGD £${r.mgd.toFixed(2)}<br>SS £${r.supplierShare.toFixed(2)}<br>CL £${r.cashLeft.toFixed(2)}`;
+      if (splitEl) splitEl.innerHTML = `MGD £${r.mgd.toFixed(2)}<br>SS £${r.supplierShare.toFixed(2)}<br>Site £${r.cashLeft.toFixed(2)}`;
       if (floatEl) {
         const defF = cat.floatRequired || 0;
         const diff = round(defF - floatReq);
@@ -1049,14 +1049,14 @@ function showSubmitConfirm(entry) {
     }
     if (breakdown) {
       breakdown.innerHTML = `<div class="confirm-table-wrap"><table>
-        <thead><tr><th>Site</th><th>Category</th><th class="num">Gross</th><th class="num">Float</th><th class="num">Net</th><th class="num">Cash left</th></tr></thead>
+        <thead><tr><th>Site</th><th>Category</th><th class="num">Gross</th><th class="num">Float</th><th class="num">Net</th><th class="num">Site Share</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     }
     if (totals) {
       totals.innerHTML =
         'Net <strong>£' + (entry.grandTotal || 0).toFixed(2) + '</strong> · ' +
-        'Cash left <strong>£' + (entry.grandCL || 0).toFixed(2) + '</strong> · ' +
+        'Site Share <strong>£' + (entry.grandCL || 0).toFixed(2) + '</strong> · ' +
         'Supplier <strong>£' + (entry.grandSS || 0).toFixed(2) + '</strong> · ' +
         'Float taken <strong>£' + (entry.grandFloat || 0).toFixed(2) + '</strong>';
     }
@@ -1179,7 +1179,7 @@ function render21DayTotals() {
 
   let html = `<div class="table-scroll"><table class="tbl"><thead>
     <tr><th colspan="5" style="background:#1a1a2e;color:#fff">Last 21 Days — Totals</th></tr>
-    <tr><th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier Share</th><th class="num">Cash Left</th></tr>
+    <tr><th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier Share</th><th class="num">Site Share</th></tr>
   </thead><tbody>`;
   let tn = 0, tm = 0, ts = 0, tc = 0;
   for (const t of Object.values(locTotals)) {
@@ -1206,7 +1206,7 @@ function showHistory() {
     return d || String(b.timestamp || '').localeCompare(String(a.timestamp || ''));
   });
   let html = `<div class="table-scroll"><table class="tbl"><thead><tr>
-    <th>Date</th><th>Submitted</th><th class="num">Net Total</th><th class="num">Cash Left</th><th class="num">Float</th><th></th>
+    <th>Date</th><th>Submitted</th><th class="num">Net Total</th><th class="num">Site Share</th><th class="num">Float</th><th></th>
   </tr></thead><tbody>`;
   for (const e of sorted) {
     const ts = e.timestamp ? new Date(e.timestamp).toLocaleString() : '—';
@@ -1367,7 +1367,7 @@ function showMonthlySummary() {
   let html = `<div class="summary-card">
     <div class="kpi"><div class="val">${filtered.length}</div><div class="lbl">Collections (${label})</div></div>
     <div class="kpi"><div class="val">£${totalGrand.toFixed(2)}</div><div class="lbl">Net Total</div></div>
-    <div class="kpi"><div class="val">£${totalCL.toFixed(2)}</div><div class="lbl">Cash Left</div></div>
+    <div class="kpi"><div class="val">£${totalCL.toFixed(2)}</div><div class="lbl">Site Share</div></div>
     <div class="kpi"><div class="val">£${totalSS.toFixed(2)}</div><div class="lbl">Supplier Share</div></div>
     <div class="kpi"><div class="val">£${totalFloat.toFixed(2)}</div><div class="lbl">Float Taken</div></div>
   </div>`;
@@ -1375,7 +1375,7 @@ function showMonthlySummary() {
   html += `<p class="hint" style="margin-top:4px">Business months: collections on the 1st–${BUSINESS_MONTH_CUTOFF_DAY}th count toward the <strong>previous</strong> month (e.g. 3 Jul → June).</p>`;
 
   html += `<div style="margin-top:12px"><h2>Totals per Location</h2><div class="table-scroll"><table class="tbl"><thead><tr>
-    <th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Cash Left</th><th></th>
+    <th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Site Share</th><th></th>
   </tr></thead><tbody>`;
   for (const v of Object.values(locTotals)) {
     const viewKey = (v.id || v.label).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -1397,7 +1397,7 @@ function showMonthlySummary() {
     monthlyMap[m].float += e.grandFloat || 0;
   }
   html += `<div style="margin-top:16px"><h2>Monthly Breakdown</h2><div class="table-scroll"><table class="tbl"><thead><tr>
-    <th>Business month</th><th class="num">Collections</th><th class="num">Net</th><th class="num">Supplier</th><th class="num">Cash Left</th><th class="num">Float</th><th></th>
+    <th>Business month</th><th class="num">Collections</th><th class="num">Net</th><th class="num">Supplier</th><th class="num">Site Share</th><th class="num">Float</th><th></th>
   </tr></thead><tbody>`;
   for (const [m, v] of Object.entries(monthlyMap).sort()) {
     html += `<tr><td>${esc(formatBusinessMonthLabel(m))}</td><td class="ro">${v.count}</td><td class="ro">£${v.grand.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td><td class="ro">£${v.float.toFixed(2)}</td>
@@ -1416,7 +1416,7 @@ function viewMonth(month) {
   let html = '';
   for (const e of entries) {
     html += `<div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:12px"><h3>${esc(e.date)}</h3>
-      <table class="tbl"><thead><tr><th>Location</th><th>Category</th><th class="num">Gross</th><th class="num">Float</th><th class="num">Net</th><th class="num">SS</th><th class="num">CL</th></tr></thead><tbody>`;
+      <table class="tbl"><thead><tr><th>Location</th><th>Category</th><th class="num">Gross</th><th class="num">Float</th><th class="num">Net</th><th class="num">Supplier</th><th class="num">Site Share</th></tr></thead><tbody>`;
     for (const loc of e.locations || []) {
       for (const cat of loc.categories || []) {
         const siteLbl = formatSiteName(loc, loc.id);
@@ -1468,7 +1468,7 @@ function viewLocationTotals(locKey) {
       monthData[m].cl += loc.poolCL || 0;
     }
   }
-  let html = `<table class="tbl"><thead><tr><th>Business month</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Cash Left</th></tr></thead><tbody>`;
+  let html = `<table class="tbl"><thead><tr><th>Business month</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Site Share</th></tr></thead><tbody>`;
   for (const [m, v] of Object.entries(monthData).sort()) {
     html += `<tr><td>${esc(formatBusinessMonthLabel(m))}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td></tr>`;
   }
@@ -1537,15 +1537,15 @@ function renderSettings() {
   }
 
   html += `<h3 style="margin-top:12px">Categories</h3>
-    <p class="hint">Cash left % is your share of net (after float). Supplier gets the rest. Default float £ is a reference on daily entry (field starts empty). Pool never uses float.</p>`;
+    <p class="hint">Site share % is your share of net (after float). Supplier gets the rest. Default float £ is a reference on daily entry (field starts empty). Pool never uses float.</p>`;
 
   (loc.categories || []).forEach((cat, ci) => {
     const clPct = Math.round((parseFloat(cat.rate) || 0.5) * 100);
     const ssPct = 100 - clPct;
     html += `<div class="cat-row">
       <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="draftSite.categories[${ci}].name=this.value"></label>
-      <label>Cash left %<br><input type="number" min="0" max="100" step="1" value="${clPct}" oninput="onDraftRatePct(${ci}, this.value)" onchange="onDraftRatePct(${ci}, this.value)"></label>
-      <div class="rate-summary" id="draft_rate_sum_${ci}">CL ${clPct}% · Supplier ${ssPct}%</div>
+      <label>Site share %<br><input type="number" min="0" max="100" step="1" value="${clPct}" oninput="onDraftRatePct(${ci}, this.value)" onchange="onDraftRatePct(${ci}, this.value)"></label>
+      <div class="rate-summary" id="draft_rate_sum_${ci}">Site ${clPct}% · Supplier ${ssPct}%</div>
       <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="draftSite.categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
       <label>Default float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="draftSite.categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
       <button class="btn btn-danger btn-sm" onclick="draftRemoveCategory(${ci})">×</button>
@@ -1609,7 +1609,7 @@ function onDraftRatePct(ci, val) {
   const sum = document.getElementById('draft_rate_sum_' + ci);
   if (sum) {
     const ss = 100 - Math.round(pct);
-    sum.textContent = 'CL ' + Math.round(pct) + '% · Supplier ' + ss + '%';
+    sum.textContent = 'Site ' + Math.round(pct) + '% · Supplier ' + ss + '%';
   }
 }
 
@@ -1703,7 +1703,7 @@ function readDraftFromDom() {
   if (nameEl) draftSite.name = nameEl.value.trim();
   const poolCb = document.getElementById('draft_hasPool');
   if (poolCb) draftSite.hasPool = poolCb.checked;
-  // categories: name, cash left %, float?, default float
+  // categories: name, site share %, float?, default float
   const card = document.getElementById('siteDraftCard');
   if (card) {
     const rows = card.querySelectorAll('.cat-row');
@@ -1939,7 +1939,7 @@ async function saveApiUrl() {
 function exportCSV() {
   const entries = getEntries();
   if (!entries.length) { alert('No entries'); return; }
-  const rows = [['Date', 'Location', 'Category', 'Gross', 'Float Taken', 'Float Owed After', 'Net', 'MGD', 'Supplier', 'Cash Left']];
+  const rows = [['Date', 'Location', 'Category', 'Gross', 'Float Taken', 'Float Owed After', 'Net', 'MGD', 'Supplier', 'Site Share']];
   for (const e of [...entries].sort((a, b) => a.date.localeCompare(b.date))) {
     for (const loc of e.locations || []) {
       for (const cat of loc.categories || []) {
