@@ -844,7 +844,7 @@ function renderForm() {
     const floatCols = hasFloat
       ? (cat.hasFloat
           ? `<td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td><td style="font-size:11px" id="float_${fid}">—</td>`
-          : `<td style="font-size:10px;color:#bbb">n/a</td><td style="font-size:10px;color:#bbb">—</td>`)
+          : '<td></td><td></td>')
       : '';
     html += `<tr>
       <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${esc(sub)}</span></td>
@@ -864,7 +864,7 @@ function renderForm() {
     html += `<tr>
       <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
       <td>${grossCell}</td>
-      ${hasFloat ? '<td style="font-size:10px;color:#bbb">n/a</td><td style="font-size:10px;color:#bbb">—</td>' : ''}
+      ${hasFloat ? '<td></td><td></td>' : ''}
       <td class="ro" id="pool_net_${lid}">0.00</td>
       <td style="font-size:11px" id="pool_split_${lid}">—</td>
     </tr>`;
