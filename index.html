@@ -100,9 +100,47 @@ h3{font-size:14px;margin:0 0 8px}
 .float-owed{color:#e67e22;font-size:11px;font-weight:600}
 .net-val{color:#27ae60;font-weight:600}
 .hint{font-size:12px;color:#888;margin:4px 0 10px}
+.confirm-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px 12px;padding:0 4px}
 @media(max-width:600px){
-  .cat-row{grid-template-columns:1fr 1fr;gap:6px}
-  .kpi .val{font-size:18px}
+  .page{padding:12px 10px}
+  h1{font-size:18px}
+  .nav a{padding:12px 12px;font-size:12px}
+  .brand-bar{padding:8px 12px}
+  .brand-bar img{width:30px;height:30px}
+  .brand-bar .brand-text{font-size:15px}
+  .form-header{gap:6px}
+  .form-header .btn{flex:1 1 auto;min-height:42px}
+  .form-header input[type=date]{min-height:42px;font-size:16px;flex:1 1 140px}
+  .entry-table{font-size:12px}
+  .entry-table th,.entry-table td{padding:6px 5px}
+  .entry-table input[type=number]{max-width:100%;min-width:64px;min-height:40px;font-size:16px;padding:8px 6px}
+  .tbl th,.tbl td{padding:6px 6px;font-size:12px}
+  .loc-summary-inner{gap:4px 10px;font-size:11px}
+  .kpi{min-width:calc(50% - 6px);padding:10px 12px}
+  .kpi .val{font-size:17px}
+  .cat-row{grid-template-columns:1fr 1fr;gap:8px}
+  .rate-summary{grid-column:1 / -1;min-height:32px}
+  .settings-card input[type=number],
+  .settings-card input[type=text],
+  .settings-card input[type=url],
+  .settings-card select{font-size:16px;min-height:40px}
+  .login-box{width:min(300px, calc(100vw - 32px));padding:28px 20px}
+  .login-box input{font-size:16px;min-height:44px}
+  .alert-overlay{padding:12px;align-items:flex-end}
+  .alert-box,.confirm-box{max-width:100%;max-height:min(88vh, 640px);padding:16px 14px;border-radius:14px 14px 0 0}
+  .confirm-box table{font-size:11px;min-width:320px}
+  .confirm-box th,.confirm-box td{padding:5px 3px}
+  .confirm-actions{position:sticky;bottom:0;background:#fff;padding-top:10px;margin:0 -2px}
+  .confirm-actions .btn{flex:1;min-height:44px}
+  .modal-overlay{padding:10px}
+  .modal-box{margin:8px auto;padding:14px;max-width:100%}
+  .btn{min-height:40px}
+  .btn-sm{min-height:36px;padding:6px 10px}
+  .msg{display:inline-block;margin:6px 0 0;width:100%}
+}
+@media(max-width:380px){
+  .kpi{min-width:100%}
+  .entry-table input[type=number]{min-width:56px;font-size:15px}
 }
 </style>
 </head>
@@ -915,10 +953,10 @@ function showSubmitConfirm(entry) {
       rows = '<tr><td colspan="6" style="text-align:center;color:#888">No amounts entered</td></tr>';
     }
     if (breakdown) {
-      breakdown.innerHTML = `<table>
+      breakdown.innerHTML = `<div class="confirm-table-wrap"><table>
         <thead><tr><th>Site</th><th>Category</th><th class="num">Gross</th><th class="num">Float</th><th class="num">Net</th><th class="num">Cash left</th></tr></thead>
         <tbody>${rows}</tbody>
-      </table>`;
+      </table></div>`;
     }
     if (totals) {
       totals.innerHTML =
