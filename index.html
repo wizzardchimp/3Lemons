@@ -41,7 +41,8 @@ h3{font-size:14px;margin:0 0 8px}
 .tbl:not(.entry-table) input[type=number]{width:100%;max-width:110px;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:15px;text-align:right}
 .loc-header{background:#1a1a2e!important;color:#fff!important;font-size:14px!important;text-transform:none!important;letter-spacing:0!important}
 .loc-summary{background:#fafafa}
-.loc-summary-inner{display:flex;flex-wrap:wrap;gap:6px 14px;padding:6px 4px;font-size:12px}
+.loc-summary-inner{display:flex;flex-direction:column;gap:4px;padding:6px 4px;font-size:12px;max-width:220px}
+.loc-summary-inner>span{display:flex;justify-content:space-between;gap:8px}
 .ls-lbl{color:#888;font-weight:600}
 .summary-card{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
 .kpi{background:#fff;border-radius:10px;padding:14px 18px;min-width:120px;flex:1;box-shadow:0 1px 4px rgba(0,0,0,.06)}
@@ -131,7 +132,7 @@ h3{font-size:14px;margin:0 0 8px}
   .entry-table th,.entry-table td{padding:6px 5px}
   .entry-table input[type=number]{max-width:100%;min-width:64px;min-height:40px;font-size:16px;padding:8px 6px}
   .tbl th,.tbl td{padding:6px 6px;font-size:12px}
-  .loc-summary-inner{gap:4px 10px;font-size:11px}
+  .loc-summary-inner{gap:3px;font-size:11px;max-width:200px}
   .kpi{min-width:calc(50% - 6px);padding:10px 12px}
   .kpi .val{font-size:17px}
   .cat-row{grid-template-columns:1fr 1fr;gap:8px}
