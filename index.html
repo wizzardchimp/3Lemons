@@ -829,9 +829,11 @@ function renderForm() {
   if (titleEl) titleEl.textContent = formatSiteName(loc);
 
   let html = '';
+  const hasFloat = (loc.categories || []).some(c => c.hasFloat);
+  const cols = hasFloat ? 6 : 4;
   html += `<div class="table-scroll"><table class="tbl entry-table"><thead>
-    <tr class="loc-header-row"><th colspan="6" class="loc-header">${esc(formatSiteName(loc))}</th></tr>
-    <tr><th>Category</th><th>Gross (£)</th><th>Float req (£)</th><th>Float / Carried from last collection</th><th>Net</th><th>Split</th></tr>
+    <tr class="loc-header-row"><th colspan="${cols}" class="loc-header">${esc(formatSiteName(loc))}</th></tr>
+    <tr>${hasFloat ? '<th>Category</th><th>Gross (£)</th><th>Float req (£)</th><th>Float / Carried from last collection</th><th>Net</th><th>Split</th>' : '<th>Category</th><th>Gross (£)</th><th>Net</th><th>Split</th>'}</tr>
   </thead><tbody>`;
 
   for (const cat of loc.categories) {
@@ -839,11 +841,15 @@ function renderForm() {
     const sub = cat.flatFee > 0
       ? `Fee £${(cat.flatFee || 0).toFixed(0)} · Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`
       : `Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`;
+    const floatCols = hasFloat
+      ? (cat.hasFloat
+          ? `<td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td><td style="font-size:11px" id="float_${fid}">—</td>`
+          : `<td style="font-size:10px;color:#bbb">n/a</td><td style="font-size:10px;color:#bbb">—</td>`)
+      : '';
     html += `<tr>
       <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${esc(sub)}</span></td>
       <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
-      <td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
-      <td style="font-size:11px" id="float_${fid}">—</td>
+      ${floatCols}
       <td class="ro net-val" id="net_${fid}">0.00</td>
       <td style="font-size:11px" id="split_${fid}">—</td>
     </tr>`;
@@ -858,14 +864,13 @@ function renderForm() {
     html += `<tr>
       <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
       <td>${grossCell}</td>
-      <td style="font-size:10px;color:#bbb">n/a</td>
-      <td style="font-size:10px;color:#bbb">—</td>
+      ${hasFloat ? '<td style="font-size:10px;color:#bbb">n/a</td><td style="font-size:10px;color:#bbb">—</td>' : ''}
       <td class="ro" id="pool_net_${lid}">0.00</td>
       <td style="font-size:11px" id="pool_split_${lid}">—</td>
     </tr>`;
   }
 
-  html += `</tbody><tfoot><tr><td colspan="6" class="loc-summary"><div class="loc-summary-inner">
+  html += `</tbody><tfoot><tr><td colspan="${cols}" class="loc-summary"><div class="loc-summary-inner">
     <span><span class="ls-lbl">Net:</span> <span id="loc_net_${loc.id}">0.00</span></span>
     <span><span class="ls-lbl">MGD:</span> <span id="loc_mgd_${loc.id}">0.00</span></span>
       <span><span class="ls-lbl">Supplier:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
