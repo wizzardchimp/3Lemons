@@ -93,6 +93,19 @@ h3{font-size:14px;margin:0 0 8px}
 .confirm-box td.ro,.confirm-box th.num{text-align:right}
 .confirm-box .confirm-totals{font-size:13px;font-weight:600;margin:0 0 14px;line-height:1.5}
 .confirm-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.site-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:12px 0 16px}
+.site-pick-btn{
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;
+  min-height:72px;padding:14px 16px;border:none;border-radius:12px;cursor:pointer;
+  background:linear-gradient(145deg,#1a1a2e,#2d3436);color:#fff;text-align:left;
+  box-shadow:0 2px 8px rgba(0,0,0,.12);font-weight:700;font-size:15px;
+}
+.site-pick-btn:hover,.site-pick-btn:focus{outline:2px solid #f7b731;outline-offset:2px;filter:brightness(1.08)}
+.site-pick-btn .site-pick-sub{font-size:11px;font-weight:600;color:#f7b731;margin-top:4px;opacity:.9}
+.site-pick-hint{font-size:13px;color:#666;margin:0 0 4px}
+.entry-site-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.entry-site-bar .site-title{font-size:16px;font-weight:700;flex:1;min-width:120px}
+.hidden{display:none!important}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:flex-start;overflow-y:auto;padding:20px}
 .modal-overlay.active{display:flex}
 .modal-box{background:#f5f5f5;border-radius:12px;padding:20px;max-width:700px;width:100%;margin:20px auto;box-shadow:0 8px 32px rgba(0,0,0,.3);position:relative}
@@ -137,10 +150,13 @@ h3{font-size:14px;margin:0 0 8px}
   .btn{min-height:40px}
   .btn-sm{min-height:36px;padding:6px 10px}
   .msg{display:inline-block;margin:6px 0 0;width:100%}
+  .site-picker{grid-template-columns:1fr 1fr;gap:8px}
+  .site-pick-btn{min-height:64px;padding:12px;font-size:14px}
 }
 @media(max-width:380px){
   .kpi{min-width:100%}
   .entry-table input[type=number]{min-width:56px;font-size:15px}
+  .site-picker{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -180,14 +196,23 @@ h3{font-size:14px;margin:0 0 8px}
 <div id="page-entry" class="page active">
   <h1>Daily Takings</h1>
   <div id="totals21Container"></div>
-  <div class="form-header">
+  <div class="form-header" id="entryDateBar">
     <label>Date:</label>
     <input type="date" id="entryDate">
-    <button class="btn btn-primary" onclick="submitEntry()">Submit</button>
-    <button class="btn btn-outline" onclick="resetForm()">Reset</button>
     <span id="submitMsg" class="msg"></span>
   </div>
-  <div id="formContainer"></div>
+  <div id="sitePickerPanel"></div>
+  <div id="entryFormPanel" class="hidden">
+    <div class="entry-site-bar">
+      <button type="button" class="btn btn-outline btn-sm" id="backToSitesBtn" onclick="backToSitePicker()">← Sites</button>
+      <div class="site-title" id="entrySiteTitle"></div>
+    </div>
+    <div class="form-header entry-actions" id="entryActions">
+      <button class="btn btn-primary" onclick="submitEntry()">Submit</button>
+      <button class="btn btn-outline" onclick="resetForm()">Reset</button>
+    </div>
+    <div id="formContainer"></div>
+  </div>
 </div>
 
 <div id="page-history" class="page">
@@ -298,6 +323,8 @@ let _monthlyFiltered = [];
 /** Draft form for add/edit site — cleared after Save site */
 let draftSite = null;
 let draftEditingId = null; // null = new site; id = editing existing
+/** Daily entry: null = site picker; site id = entry form for that site */
+let activeEntrySiteId = null;
 
 // ===== CONFIG =====
 function loadConfigLocal() {
@@ -711,56 +738,121 @@ function todayStr() {
 }
 
 // ===== RENDER FORM =====
+function getActiveEntryLocations() {
+  if (!activeEntrySiteId) return [];
+  const loc = config.locations.find(l => String(l.id) === String(activeEntrySiteId));
+  return loc ? [loc] : [];
+}
+
+function backToSitePicker() {
+  activeEntrySiteId = null;
+  renderForm();
+}
+
+function selectEntrySite(siteId) {
+  activeEntrySiteId = String(siteId || '');
+  renderForm();
+  const panel = document.getElementById('entryFormPanel');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderSitePicker() {
+  const panel = document.getElementById('sitePickerPanel');
+  if (!panel) return;
+  if (!config.locations.length) {
+    panel.innerHTML = '<div class="empty-state"><p>No sites configured. Add sites in Settings.</p></div>';
+    return;
+  }
+  let html = '<p class="site-pick-hint">Choose a site to enter takings</p><div class="site-picker">';
+  config.locations.forEach(loc => {
+    const cats = (loc.categories || []).map(c => c.name).join(' · ') || 'No categories';
+    const pool = loc.hasPool ? ' · Pool' : '';
+    html += `<button type="button" class="site-pick-btn" data-site-id="${esc(String(loc.id))}">
+      <span>${esc(formatSiteName(loc))}</span>
+      <span class="site-pick-sub">${esc(cats + pool)}</span>
+    </button>`;
+  });
+  html += '</div>';
+  panel.innerHTML = html;
+  panel.querySelectorAll('.site-pick-btn').forEach(btn => {
+    btn.addEventListener('click', () => selectEntrySite(btn.getAttribute('data-site-id')));
+  });
+}
+
 function renderForm() {
   const container = document.getElementById('formContainer');
   const dateEl = document.getElementById('entryDate');
-  if (!dateEl.value) dateEl.value = todayStr();
-  const date = dateEl.value;
+  const picker = document.getElementById('sitePickerPanel');
+  const formPanel = document.getElementById('entryFormPanel');
+  if (dateEl && !dateEl.value) dateEl.value = todayStr();
+  const date = dateEl ? dateEl.value : todayStr();
 
   if (!config.locations.length) {
-    container.innerHTML = '<div class="empty-state"><p>No sites configured. Add sites in Settings.</p></div>';
+    if (picker) picker.innerHTML = '<div class="empty-state"><p>No sites configured. Add sites in Settings.</p></div>';
+    if (formPanel) formPanel.classList.add('hidden');
+    if (container) container.innerHTML = '';
     return;
   }
 
-  let html = '';
-  for (const loc of config.locations) {
-    html += `<div class="table-scroll"><table class="tbl entry-table"><thead>
-      <tr class="loc-header-row"><th colspan="6" class="loc-header">${esc(formatSiteName(loc))}</th></tr>
-      <tr><th>Category</th><th>Gross (£)</th><th>Float req (£)</th><th>Float / Carried from last collection</th><th>Net</th><th>Split</th></tr>
-    </thead><tbody>`;
-
-    for (const cat of loc.categories) {
-      const fid = fieldId(loc, cat);
-      html += `<tr>
-        <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">CL ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%</span></td>
-        <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
-        <td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
-        <td style="font-size:11px" id="float_${fid}">—</td>
-        <td class="ro net-val" id="net_${fid}">0.00</td>
-        <td style="font-size:11px" id="split_${fid}">—</td>
-      </tr>`;
-    }
-
-    if (loc.hasPool) {
-      const lid = loc.id;
-      html += `<tr>
-        <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
-        <td><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
-        <td style="font-size:10px;color:#bbb">n/a</td>
-        <td style="font-size:10px;color:#bbb">—</td>
-        <td class="ro" id="pool_net_${lid}">0.00</td>
-        <td style="font-size:11px" id="pool_split_${lid}">—</td>
-      </tr>`;
-    }
-
-    html += `</tbody><tfoot><tr><td colspan="6" class="loc-summary"><div class="loc-summary-inner">
-      <span><span class="ls-lbl">Net:</span> <span id="loc_net_${loc.id}">0.00</span></span>
-      <span><span class="ls-lbl">MGD:</span> <span id="loc_mgd_${loc.id}">0.00</span></span>
-      <span><span class="ls-lbl">Supp:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
-      <span><span class="ls-lbl">Cash Left:</span> <span id="loc_cl_${loc.id}">0.00</span></span>
-      <span><span class="ls-lbl">Float taken:</span> <span id="loc_ft_${loc.id}">0.00</span></span>
-    </div></td></tr></tfoot></table></div>`;
+  // Site picker mode
+  if (!activeEntrySiteId) {
+    if (picker) picker.classList.remove('hidden');
+    if (formPanel) formPanel.classList.add('hidden');
+    renderSitePicker();
+    return;
   }
+
+  const locs = getActiveEntryLocations();
+  if (!locs.length) {
+    activeEntrySiteId = null;
+    renderForm();
+    return;
+  }
+
+  if (picker) picker.classList.add('hidden');
+  if (formPanel) formPanel.classList.remove('hidden');
+
+  const loc = locs[0];
+  const titleEl = document.getElementById('entrySiteTitle');
+  if (titleEl) titleEl.textContent = formatSiteName(loc);
+
+  let html = '';
+  html += `<div class="table-scroll"><table class="tbl entry-table"><thead>
+    <tr class="loc-header-row"><th colspan="6" class="loc-header">${esc(formatSiteName(loc))}</th></tr>
+    <tr><th>Category</th><th>Gross (£)</th><th>Float req (£)</th><th>Float / Carried from last collection</th><th>Net</th><th>Split</th></tr>
+  </thead><tbody>`;
+
+  for (const cat of loc.categories) {
+    const fid = fieldId(loc, cat);
+    html += `<tr>
+      <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">CL ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%</span></td>
+      <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
+      <td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
+      <td style="font-size:11px" id="float_${fid}">—</td>
+      <td class="ro net-val" id="net_${fid}">0.00</td>
+      <td style="font-size:11px" id="split_${fid}">—</td>
+    </tr>`;
+  }
+
+  if (loc.hasPool) {
+    const lid = loc.id;
+    html += `<tr>
+      <td><strong>Pool</strong><br><span style="font-size:10px;color:#888">${esc(poolModeLabel(loc))}</span></td>
+      <td><input type="number" step="any" id="pool_${lid}" oninput="updateFormCalcs()" placeholder="Gross"></td>
+      <td style="font-size:10px;color:#bbb">n/a</td>
+      <td style="font-size:10px;color:#bbb">—</td>
+      <td class="ro" id="pool_net_${lid}">0.00</td>
+      <td style="font-size:11px" id="pool_split_${lid}">—</td>
+    </tr>`;
+  }
+
+  html += `</tbody><tfoot><tr><td colspan="6" class="loc-summary"><div class="loc-summary-inner">
+    <span><span class="ls-lbl">Net:</span> <span id="loc_net_${loc.id}">0.00</span></span>
+    <span><span class="ls-lbl">MGD:</span> <span id="loc_mgd_${loc.id}">0.00</span></span>
+    <span><span class="ls-lbl">Supp:</span> <span id="loc_ss_${loc.id}">0.00</span></span>
+    <span><span class="ls-lbl">Cash Left:</span> <span id="loc_cl_${loc.id}">0.00</span></span>
+    <span><span class="ls-lbl">Float taken:</span> <span id="loc_ft_${loc.id}">0.00</span></span>
+  </div></td></tr></tfoot></table></div>`;
 
   html += `<div class="table-scroll"><table class="tbl"><thead>
     <tr><th colspan="5" style="background:#1a1a2e;color:#fff">Live Collection Totals</th></tr>
@@ -774,7 +866,7 @@ function renderForm() {
     <td class="ro" id="g_cl">0.00</td>
   </tr></tfoot></table></div>`;
 
-  container.innerHTML = html;
+  if (container) container.innerHTML = html;
   updateFormCalcs();
 }
 
@@ -790,8 +882,10 @@ function updateFormCalcs() {
   const date = document.getElementById('entryDate').value || todayStr();
   let gNet = 0, gMgd = 0, gSs = 0, gCl = 0;
   let gtHtml = '';
+  const locs = getActiveEntryLocations();
+  if (!locs.length) return;
 
-  for (const loc of config.locations) {
+  for (const loc of locs) {
     let locNet = 0, locMgd = 0, locSs = 0, locCl = 0, locFt = 0;
 
     for (const cat of loc.categories) {
@@ -854,12 +948,13 @@ function updateFormCalcs() {
 function buildEntryFromForm() {
   const date = document.getElementById('entryDate').value;
   if (!date) return null;
-  if (!config.locations.length) return null;
+  const locs = getActiveEntryLocations();
+  if (!locs.length) return null;
 
   const ts = new Date().toISOString();
   const entry = { date, timestamp: ts, id: ts, locations: [], grandTotal: 0, grandCL: 0, grandMGD: 0, grandSS: 0, grandFloat: 0 };
 
-  for (const loc of config.locations) {
+  for (const loc of locs) {
     const locData = { id: loc.id, name: loc.name, categories: [] };
     for (const cat of loc.categories) {
       const fid = fieldId(loc, cat);
@@ -982,6 +1077,7 @@ function showSubmitConfirm(entry) {
 async function submitEntry() {
   const date = document.getElementById('entryDate').value;
   if (!date) { showMsg('submitMsg', 'Select a date', 'error'); return; }
+  if (!activeEntrySiteId) { showMsg('submitMsg', 'Choose a site first', 'error'); return; }
   if (!config.locations.length) { showMsg('submitMsg', 'No sites configured', 'error'); return; }
 
   const entry = buildEntryFromForm();
@@ -1004,17 +1100,26 @@ async function submitEntry() {
   const ok = await saveEntry(entry);
   if (ok) {
     showMsg('submitMsg', `Saved ${date}`, 'success');
-    resetForm();
+    // Return to site buttons for the next submission
+    activeEntrySiteId = null;
+    const keepDate = date;
+    renderForm();
+    const dateEl = document.getElementById('entryDate');
+    if (dateEl) dateEl.value = keepDate;
+    render21DayTotals();
   } else {
     showMsg('submitMsg', 'Save failed — check API URL', 'error');
   }
   updateHistoryCount();
-  render21DayTotals();
 }
 
 function resetForm() {
-  renderForm();
-  document.getElementById('entryDate').value = todayStr();
+  // Clear inputs for current site only (stay on site form)
+  if (activeEntrySiteId) {
+    renderForm();
+  } else {
+    renderForm();
+  }
 }
 
 function showMsg(id, text, type) {
@@ -1871,7 +1976,12 @@ function showPage(name) {
   if (name === 'history') showHistory();
   if (name === 'monthly') showMonthlySummary();
   if (name === 'settings') renderSettings();
-  if (name === 'entry') { renderForm(); render21DayTotals(); }
+  if (name === 'entry') {
+    // Always land on site picker when opening Daily Entry
+    activeEntrySiteId = null;
+    renderForm();
+    render21DayTotals();
+  }
 }
 
 async function doLogin() {
