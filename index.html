@@ -44,6 +44,7 @@ h3{font-size:14px;margin:0 0 8px}
 .loc-summary-inner{display:flex;flex-direction:column;gap:4px;padding:6px 4px;font-size:12px;max-width:220px}
 .loc-summary-inner>span{display:flex;justify-content:space-between;gap:8px}
 .ls-lbl{color:#888;font-weight:600}
+.split-shares{color:#999;font-size:10px;border-top:1px dashed #ddd;padding-top:3px;display:inline-block;margin-top:3px}
 .summary-card{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
 .kpi{background:#fff;border-radius:10px;padding:14px 18px;min-width:120px;flex:1;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .kpi .val{font-size:22px;font-weight:700;color:#1a1a2e}
@@ -839,20 +840,18 @@ function renderForm() {
 
   for (const cat of loc.categories) {
     const fid = fieldId(loc, cat);
-    const sub = cat.flatFee > 0
-      ? `Fee £${(cat.flatFee || 0).toFixed(0)} · Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`
-      : `Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`;
+    const shares = `Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`;
     const floatCols = hasFloat
       ? (cat.hasFloat
           ? `<td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td><td style="font-size:11px" id="float_${fid}">—</td>`
           : '<td></td><td></td>')
       : '';
     html += `<tr>
-      <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${esc(sub)}</span></td>
+      <td><strong>${esc(cat.name)}</strong></td>
       <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
       ${floatCols}
       <td class="ro net-val" id="net_${fid}">0.00</td>
-      <td style="font-size:11px" id="split_${fid}">—</td>
+      <td style="font-size:11px" id="split_${fid}"><span class="split-shares">${esc(shares)}</span></td>
     </tr>`;
   }
 
@@ -934,7 +933,8 @@ function updateFormCalcs() {
       if (netEl) netEl.textContent = r.net.toFixed(2);
       if (splitEl) {
         const fee = cat.flatFee > 0 ? Math.min(cat.flatFee, r.gross) : 0;
-        splitEl.innerHTML = (cat.flatFee > 0 ? `Fee £${fee.toFixed(2)}<br>` : `MGD £${r.mgd.toFixed(2)}<br>`) + `SS £${r.supplierShare.toFixed(2)}<br>Site £${r.cashLeft.toFixed(2)}`;
+        const shares = `Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`;
+        splitEl.innerHTML = (cat.flatFee > 0 ? `Fee £${fee.toFixed(2)}<br>` : `MGD £${r.mgd.toFixed(2)}<br>`) + `SS £${r.supplierShare.toFixed(2)}<br>Site £${r.cashLeft.toFixed(2)}<br><span class="split-shares">${shares}</span>`;
       }
       if (floatEl) {
         const defF = cat.floatRequired || 0;
