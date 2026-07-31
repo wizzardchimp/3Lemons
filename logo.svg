@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-label="3Lemons">
+  <defs>
+    <linearGradient id="lemonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe566"/>
+      <stop offset="50%" stop-color="#f7b731"/>
+      <stop offset="100%" stop-color="#d4920f"/>
+    </linearGradient>
+    <filter id="soft" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <!-- mark -->
+  <rect x="4" y="12" width="72" height="72" rx="18" fill="#1a1a2e"/>
+  <g filter="url(#soft)">
+    <ellipse cx="28" cy="52" rx="13" ry="17" fill="url(#lemonGrad)" transform="rotate(-20 28 52)"/>
+    <ellipse cx="40" cy="44" rx="13" ry="17" fill="url(#lemonGrad)" transform="rotate(6 40 44)"/>
+    <ellipse cx="54" cy="54" rx="13" ry="17" fill="url(#lemonGrad)" transform="rotate(24 54 54)"/>
+  </g>
+  <ellipse cx="35" cy="30" rx="6" ry="3.5" fill="#3d9a4a" transform="rotate(-28 35 30)"/>
+  <ellipse cx="45" cy="28" rx="6" ry="3.5" fill="#2f8a3c" transform="rotate(22 45 28)"/>
+  <path d="M40 24v10" stroke="#1f6b2a" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="32" cy="46" r="2" fill="#fff8c4" opacity="0.75"/>
+  <circle cx="43" cy="40" r="1.8" fill="#fff8c4" opacity="0.7"/>
+  <circle cx="57" cy="48" r="1.9" fill="#fff8c4" opacity="0.7"/>
+
+  <!-- wordmark -->
+  <text x="92" y="58" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="36" font-weight="750" fill="#1a1a2e" letter-spacing="-0.5">3Lemons</text>
+  <text x="94" y="78" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" fill="#888" letter-spacing="1.5">DAILY TAKINGS</text>
+</svg>

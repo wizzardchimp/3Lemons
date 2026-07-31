@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>3Lemons — Daily Takings</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="favicon.svg">
+<meta name="theme-color" content="#1a1a2e">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f2f5;color:#1a1a2e;line-height:1.4}
@@ -59,7 +62,12 @@ h3{font-size:14px;margin:0 0 8px}
 .login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e,#2d3436,#f7b73133);z-index:9999;display:flex;justify-content:center;align-items:center}
 .login-overlay.hidden{display:none}
 .login-box{background:#fff;border-radius:16px;padding:40px 32px;width:300px;box-shadow:0 16px 48px rgba(0,0,0,.3);text-align:center}
+.login-logo{width:72px;height:72px;margin:0 auto 12px;display:block}
 .login-box h1{margin:0 0 8px;font-size:24px}
+.brand-bar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#1a1a2e;border-bottom:1px solid rgba(247,183,49,.25)}
+.brand-bar img{width:36px;height:36px;display:block;flex-shrink:0}
+.brand-bar .brand-text{color:#fff;font-weight:750;font-size:16px;letter-spacing:-0.2px}
+.brand-bar .brand-sub{color:#f7b731;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase}
 .login-box p{margin:0 0 20px;font-size:13px;color:#888}
 .login-box input{width:100%;padding:12px;font-size:18px;text-align:center;border:2px solid #ddd;border-radius:8px;outline:none}
 .login-box input:focus{border-color:#f7b731}
@@ -91,6 +99,7 @@ h3{font-size:14px;margin:0 0 8px}
 
 <div id="loginOverlay" class="login-overlay">
   <div class="login-box">
+    <img class="login-logo" src="favicon.svg" alt="3Lemons">
     <h1>3Lemons</h1>
     <p>Enter password to continue</p>
     <input type="password" id="loginPwd" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
@@ -105,6 +114,13 @@ h3{font-size:14px;margin:0 0 8px}
   <div class="loading-text" id="loadingText">Loading…</div>
 </div>
 
+<div class="brand-bar">
+  <img src="favicon.svg" alt="">
+  <div>
+    <div class="brand-text">3Lemons</div>
+    <div class="brand-sub">Daily Takings</div>
+  </div>
+</div>
 <div class="nav">
   <a class="active" onclick="showPage('entry')">Daily Entry</a>
   <a onclick="showPage('history')">History</a>
