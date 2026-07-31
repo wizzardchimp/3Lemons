@@ -103,8 +103,11 @@ h3{font-size:14px;margin:0 0 8px}
 .site-pick-btn:hover,.site-pick-btn:focus{outline:2px solid #f7b731;outline-offset:2px;filter:brightness(1.08)}
 .site-pick-btn .site-pick-sub{font-size:11px;font-weight:600;color:#f7b731;margin-top:4px;opacity:.9}
 .site-pick-hint{font-size:13px;color:#666;margin:0 0 4px}
-.entry-site-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:12px}
+.entry-site-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0}
+.entry-site-bar.hidden{display:none!important}
 .entry-site-bar .site-title{font-size:16px;font-weight:700;flex:1;min-width:120px}
+.entry-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0 8px}
+.entry-actions .btn-primary{min-width:140px}
 .hidden{display:none!important}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:flex-start;overflow-y:auto;padding:20px}
 .modal-overlay.active{display:flex}
@@ -152,6 +155,9 @@ h3{font-size:14px;margin:0 0 8px}
   .msg{display:inline-block;margin:6px 0 0;width:100%}
   .site-picker{grid-template-columns:1fr 1fr;gap:8px}
   .site-pick-btn{min-height:64px;padding:12px;font-size:14px}
+  .entry-actions{flex-direction:column;align-items:stretch}
+  .entry-actions .btn{width:100%;min-height:48px;font-size:16px}
+  .entry-actions .btn-primary{order:-1}
 }
 @media(max-width:380px){
   .kpi{min-width:100%}
@@ -196,6 +202,10 @@ h3{font-size:14px;margin:0 0 8px}
 <div id="page-entry" class="page active">
   <h1>Daily Takings</h1>
   <div id="totals21Container"></div>
+  <div class="entry-site-bar hidden" id="entrySiteBar">
+    <button type="button" class="btn btn-outline btn-sm" id="backToSitesBtn" onclick="backToSitePicker()">← Sites</button>
+    <div class="site-title" id="entrySiteTitle"></div>
+  </div>
   <div class="form-header" id="entryDateBar">
     <label>Date:</label>
     <input type="date" id="entryDate">
@@ -203,15 +213,11 @@ h3{font-size:14px;margin:0 0 8px}
   </div>
   <div id="sitePickerPanel"></div>
   <div id="entryFormPanel" class="hidden">
-    <div class="entry-site-bar">
-      <button type="button" class="btn btn-outline btn-sm" id="backToSitesBtn" onclick="backToSitePicker()">← Sites</button>
-      <div class="site-title" id="entrySiteTitle"></div>
-    </div>
-    <div class="form-header entry-actions" id="entryActions">
-      <button class="btn btn-primary" onclick="submitEntry()">Submit</button>
-      <button class="btn btn-outline" onclick="resetForm()">Reset</button>
-    </div>
     <div id="formContainer"></div>
+    <div class="entry-actions" id="entryActions">
+      <button type="button" class="btn btn-primary" onclick="submitEntry()">Submit</button>
+      <button type="button" class="btn btn-outline" onclick="resetForm()">Reset</button>
+    </div>
   </div>
 </div>
 
@@ -784,12 +790,14 @@ function renderForm() {
   const dateEl = document.getElementById('entryDate');
   const picker = document.getElementById('sitePickerPanel');
   const formPanel = document.getElementById('entryFormPanel');
+  const siteBar = document.getElementById('entrySiteBar');
   if (dateEl && !dateEl.value) dateEl.value = todayStr();
   const date = dateEl ? dateEl.value : todayStr();
 
   if (!config.locations.length) {
     if (picker) picker.innerHTML = '<div class="empty-state"><p>No sites configured. Add sites in Settings.</p></div>';
     if (formPanel) formPanel.classList.add('hidden');
+    if (siteBar) siteBar.classList.add('hidden');
     if (container) container.innerHTML = '';
     return;
   }
@@ -798,6 +806,7 @@ function renderForm() {
   if (!activeEntrySiteId) {
     if (picker) picker.classList.remove('hidden');
     if (formPanel) formPanel.classList.add('hidden');
+    if (siteBar) siteBar.classList.add('hidden');
     renderSitePicker();
     return;
   }
@@ -811,6 +820,7 @@ function renderForm() {
 
   if (picker) picker.classList.add('hidden');
   if (formPanel) formPanel.classList.remove('hidden');
+  if (siteBar) siteBar.classList.remove('hidden');
 
   const loc = locs[0];
   const titleEl = document.getElementById('entrySiteTitle');
