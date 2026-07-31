@@ -82,6 +82,17 @@ h3{font-size:14px;margin:0 0 8px}
 .alert-box{background:#fff;border-radius:14px;padding:24px 22px;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35);text-align:center}
 .alert-box h3{margin:0 0 10px;font-size:18px;color:#c0392b}
 .alert-box p{margin:0 0 18px;font-size:14px;color:#444;line-height:1.45}
+.confirm-box{background:#fff;border-radius:14px;padding:22px 20px;max-width:440px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35);text-align:left;max-height:85vh;overflow-y:auto}
+.confirm-box h3{margin:0 0 8px;font-size:18px;color:#1a1a2e;text-align:center}
+.confirm-box .confirm-month{background:#fff8e6;border:1px solid #f7b73155;border-radius:8px;padding:10px 12px;margin:0 0 12px;font-size:13px;line-height:1.4}
+.confirm-box .confirm-month strong{color:#1a1a2e}
+.confirm-box .confirm-meta{font-size:13px;color:#666;margin:0 0 10px;text-align:center}
+.confirm-box table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px}
+.confirm-box th,.confirm-box td{padding:6px 4px;border-bottom:1px solid #eee;text-align:left}
+.confirm-box th{font-size:10px;text-transform:uppercase;color:#888}
+.confirm-box td.ro,.confirm-box th.num{text-align:right}
+.confirm-box .confirm-totals{font-size:13px;font-weight:600;margin:0 0 14px;line-height:1.5}
+.confirm-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:flex-start;overflow-y:auto;padding:20px}
 .modal-overlay.active{display:flex}
 .modal-box{background:#f5f5f5;border-radius:12px;padding:20px;max-width:700px;width:100%;margin:20px auto;box-shadow:0 8px 32px rgba(0,0,0,.3);position:relative}
@@ -203,6 +214,20 @@ h3{font-size:14px;margin:0 0 8px}
     <h3 id="alertTitle">Connection error</h3>
     <p id="alertBody">Could not reach the API.</p>
     <button type="button" class="btn btn-primary" style="min-width:120px" onclick="closeAppAlert()">OK</button>
+  </div>
+</div>
+
+<div id="confirmOverlay" class="alert-overlay">
+  <div class="confirm-box">
+    <h3>Confirm submission</h3>
+    <p class="confirm-meta" id="confirmMeta"></p>
+    <div class="confirm-month" id="confirmMonth"></div>
+    <div id="confirmBreakdown"></div>
+    <div class="confirm-totals" id="confirmTotals"></div>
+    <div class="confirm-actions">
+      <button type="button" class="btn btn-outline" id="confirmCancelBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="confirmOkBtn">Confirm &amp; save</button>
+    </div>
   </div>
 </div>
 
@@ -788,10 +813,10 @@ function updateFormCalcs() {
 }
 
 // ===== SUBMIT =====
-async function submitEntry() {
+function buildEntryFromForm() {
   const date = document.getElementById('entryDate').value;
-  if (!date) { showMsg('submitMsg', 'Select a date', 'error'); return; }
-  if (!config.locations.length) { showMsg('submitMsg', 'No sites configured', 'error'); return; }
+  if (!date) return null;
+  if (!config.locations.length) return null;
 
   const ts = new Date().toISOString();
   const entry = { date, timestamp: ts, id: ts, locations: [], grandTotal: 0, grandCL: 0, grandMGD: 0, grandSS: 0, grandFloat: 0 };
@@ -838,6 +863,104 @@ async function submitEntry() {
   entry.grandMGD = round(entry.grandMGD);
   entry.grandSS = round(entry.grandSS);
   entry.grandFloat = round(entry.grandFloat);
+  return entry;
+}
+
+function showSubmitConfirm(entry) {
+  return new Promise((resolve) => {
+    const ov = document.getElementById('confirmOverlay');
+    const meta = document.getElementById('confirmMeta');
+    const monthEl = document.getElementById('confirmMonth');
+    const breakdown = document.getElementById('confirmBreakdown');
+    const totals = document.getElementById('confirmTotals');
+    const okBtn = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+
+    const bKey = businessMonthKey(entry.date);
+    const bLabel = formatBusinessMonthLabel(bKey);
+
+    if (meta) meta.textContent = 'Entry date: ' + entry.date;
+    if (monthEl) {
+      monthEl.innerHTML = 'This will count toward the <strong>' + esc(bLabel) + '</strong> collection on the Summary page.';
+    }
+
+    let rows = '';
+    for (const loc of entry.locations || []) {
+      for (const cat of loc.categories || []) {
+        const g = cat.gross || 0;
+        const f = cat.floatTaken || 0;
+        const n = cat.net || 0;
+        if (!g && !f && !n) continue;
+        rows += `<tr>
+          <td>${esc(loc.name)}</td>
+          <td>${esc(cat.name)}</td>
+          <td class="ro">£${g.toFixed(2)}</td>
+          <td class="ro">£${f.toFixed(2)}</td>
+          <td class="ro">£${n.toFixed(2)}</td>
+          <td class="ro">£${(cat.cashLeft || 0).toFixed(2)}</td>
+        </tr>`;
+      }
+      if (loc.poolGross) {
+        rows += `<tr>
+          <td>${esc(loc.name)}</td>
+          <td>Pool</td>
+          <td class="ro">£${loc.poolGross.toFixed(2)}</td>
+          <td class="ro">—</td>
+          <td class="ro">£${loc.poolGross.toFixed(2)}</td>
+          <td class="ro">£${(loc.poolCL || 0).toFixed(2)}</td>
+        </tr>`;
+      }
+    }
+    if (!rows) {
+      rows = '<tr><td colspan="6" style="text-align:center;color:#888">No amounts entered</td></tr>';
+    }
+    if (breakdown) {
+      breakdown.innerHTML = `<table>
+        <thead><tr><th>Site</th><th>Category</th><th class="num">Gross</th><th class="num">Float</th><th class="num">Net</th><th class="num">Cash left</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+    if (totals) {
+      totals.innerHTML =
+        'Net <strong>£' + (entry.grandTotal || 0).toFixed(2) + '</strong> · ' +
+        'Cash left <strong>£' + (entry.grandCL || 0).toFixed(2) + '</strong> · ' +
+        'Supplier <strong>£' + (entry.grandSS || 0).toFixed(2) + '</strong> · ' +
+        'Float taken <strong>£' + (entry.grandFloat || 0).toFixed(2) + '</strong>';
+    }
+
+    function cleanup(result) {
+      ov.classList.remove('active');
+      okBtn.onclick = null;
+      cancelBtn.onclick = null;
+      resolve(result);
+    }
+    okBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
+    ov.onclick = (e) => { if (e.target === ov) cleanup(false); };
+    ov.classList.add('active');
+  });
+}
+
+async function submitEntry() {
+  const date = document.getElementById('entryDate').value;
+  if (!date) { showMsg('submitMsg', 'Select a date', 'error'); return; }
+  if (!config.locations.length) { showMsg('submitMsg', 'No sites configured', 'error'); return; }
+
+  const entry = buildEntryFromForm();
+  if (!entry) { showMsg('submitMsg', 'Could not build entry', 'error'); return; }
+
+  const hasAny = (entry.grandTotal || 0) > 0 || (entry.grandFloat || 0) > 0 ||
+    entry.locations.some(l => (l.categories || []).some(c => (c.gross || 0) > 0 || (c.floatRequired || 0) > 0) || (l.poolGross || 0) > 0);
+  if (!hasAny) {
+    showMsg('submitMsg', 'Enter at least one amount', 'error');
+    return;
+  }
+
+  const confirmed = await showSubmitConfirm(entry);
+  if (!confirmed) {
+    showMsg('submitMsg', 'Cancelled', 'error');
+    return;
+  }
 
   showMsg('submitMsg', 'Saving…', 'success');
   const ok = await saveEntry(entry);
