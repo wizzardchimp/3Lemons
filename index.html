@@ -1003,6 +1003,36 @@ async function clearHistory() {
 }
 
 // ===== MONTHLY =====
+/** Business month: days 1–5 count as previous calendar month (e.g. 5 Jul → June). */
+const BUSINESS_MONTH_CUTOFF_DAY = 5;
+
+function businessMonthKey(dateStr) {
+  if (!dateStr || String(dateStr).length < 10) return '';
+  const y = parseInt(String(dateStr).slice(0, 4), 10);
+  const mo = parseInt(String(dateStr).slice(5, 7), 10);
+  const day = parseInt(String(dateStr).slice(8, 10), 10);
+  if (!y || !mo || !day) return String(dateStr).slice(0, 7);
+  let yy = y, mm = mo;
+  if (day <= BUSINESS_MONTH_CUTOFF_DAY) {
+    mm -= 1;
+    if (mm < 1) { mm = 12; yy -= 1; }
+  }
+  return yy + '-' + String(mm).padStart(2, '0');
+}
+
+function formatBusinessMonthLabel(key) {
+  if (!key || key.length < 7) return key || '';
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const y = key.slice(0, 4);
+  const m = parseInt(key.slice(5, 7), 10);
+  const name = months[m - 1] || key;
+  // Period covered: 6th of that month → 5th of next
+  let ny = parseInt(y, 10), nm = m + 1;
+  if (nm > 12) { nm = 1; ny += 1; }
+  const nextName = months[nm - 1];
+  return name + ' ' + y + ' (6 ' + name + ' – 5 ' + nextName + ')';
+}
+
 function applyRangeFilter() {
   const val = document.querySelector('input[name="range"]:checked')?.value;
   if (!val || val === 'all') {
@@ -1076,6 +1106,8 @@ function showMonthlySummary() {
     <div class="kpi"><div class="val">£${totalFloat.toFixed(2)}</div><div class="lbl">Float Taken</div></div>
   </div>`;
 
+  html += `<p class="hint" style="margin-top:4px">Business months: collections on the 1st–${BUSINESS_MONTH_CUTOFF_DAY}th count toward the <strong>previous</strong> month (e.g. 3 Jul → June).</p>`;
+
   html += `<div style="margin-top:12px"><h2>Totals per Location</h2><div class="table-scroll"><table class="tbl"><thead><tr>
     <th>Location</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Cash Left</th><th></th>
   </tr></thead><tbody>`;
@@ -1086,10 +1118,11 @@ function showMonthlySummary() {
   }
   html += `</tbody></table></div></div>`;
 
-  // Monthly breakdown
+  // Monthly breakdown (business month grouping)
   const monthlyMap = {};
   for (const e of filtered) {
-    const m = e.date.substring(0, 7);
+    const m = businessMonthKey(e.date);
+    if (!m) continue;
     if (!monthlyMap[m]) monthlyMap[m] = { count: 0, grand: 0, cl: 0, ss: 0, float: 0 };
     monthlyMap[m].count++;
     monthlyMap[m].grand += e.grandTotal || 0;
@@ -1098,10 +1131,10 @@ function showMonthlySummary() {
     monthlyMap[m].float += e.grandFloat || 0;
   }
   html += `<div style="margin-top:16px"><h2>Monthly Breakdown</h2><div class="table-scroll"><table class="tbl"><thead><tr>
-    <th>Month</th><th class="num">Collections</th><th class="num">Net</th><th class="num">Supplier</th><th class="num">Cash Left</th><th class="num">Float</th><th></th>
+    <th>Business month</th><th class="num">Collections</th><th class="num">Net</th><th class="num">Supplier</th><th class="num">Cash Left</th><th class="num">Float</th><th></th>
   </tr></thead><tbody>`;
   for (const [m, v] of Object.entries(monthlyMap).sort()) {
-    html += `<tr><td>${m}</td><td class="ro">${v.count}</td><td class="ro">£${v.grand.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td><td class="ro">£${v.float.toFixed(2)}</td>
+    html += `<tr><td>${esc(formatBusinessMonthLabel(m))}</td><td class="ro">${v.count}</td><td class="ro">£${v.grand.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td><td class="ro">£${v.float.toFixed(2)}</td>
       <td><button class="btn btn-sm" onclick="viewMonth('${m}')">View</button></td></tr>`;
   }
   html += '</tbody></table></div></div>';
@@ -1110,8 +1143,10 @@ function showMonthlySummary() {
 }
 
 function viewMonth(month) {
-  const entries = getEntries().filter(e => e.date.substring(0, 7) === month).sort((a, b) => a.date.localeCompare(b.date));
-  document.getElementById('monthModalTitle').textContent = month;
+  const entries = getEntries()
+    .filter(e => businessMonthKey(e.date) === month)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  document.getElementById('monthModalTitle').textContent = formatBusinessMonthLabel(month);
   let html = '';
   for (const e of entries) {
     html += `<div style="background:#fff;border-radius:8px;padding:12px;margin-bottom:12px"><h3>${esc(e.date)}</h3>
@@ -1151,7 +1186,8 @@ function viewLocationTotals(locKey) {
       l.id === locKey || l.name === locKey
     );
     if (!loc) continue;
-    const m = e.date.substring(0, 7);
+    const m = businessMonthKey(e.date);
+    if (!m) continue;
     if (!monthData[m]) monthData[m] = { net: 0, mgd: 0, ss: 0, cl: 0 };
     for (const cat of loc.categories || []) {
       const net = cat.net != null ? cat.net : (cat.total || 0);
@@ -1166,9 +1202,9 @@ function viewLocationTotals(locKey) {
       monthData[m].cl += loc.poolCL || 0;
     }
   }
-  let html = `<table class="tbl"><thead><tr><th>Month</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Cash Left</th></tr></thead><tbody>`;
+  let html = `<table class="tbl"><thead><tr><th>Business month</th><th class="num">Net</th><th class="num">MGD</th><th class="num">Supplier</th><th class="num">Cash Left</th></tr></thead><tbody>`;
   for (const [m, v] of Object.entries(monthData).sort()) {
-    html += `<tr><td>${m}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td></tr>`;
+    html += `<tr><td>${esc(formatBusinessMonthLabel(m))}</td><td class="ro">£${v.net.toFixed(2)}</td><td class="ro">£${v.mgd.toFixed(2)}</td><td class="ro">£${v.ss.toFixed(2)}</td><td class="ro">£${v.cl.toFixed(2)}</td></tr>`;
   }
   html += '</tbody></table>';
   document.getElementById('monthModalEntries').innerHTML = html;
