@@ -315,13 +315,12 @@ const DEFAULT_CONFIG = {
       id: uid(), name: 'Site A', nameHistory: [], hasPool: false,
       poolMode: 'fifty', poolRent: 0, poolPercent: 50,
       categories: [
-        { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0 },
-        { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0 }
+        { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0, flatFee: 0 },
+        { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0, flatFee: 0 }
       ]
     }
   ]
 };
-
 let config;
 let cachedEntries = [];
 let entriesLoaded = false;
@@ -376,6 +375,8 @@ function migrateConfig(cfg) {
       if (c.rate > 1) c.rate = 1;
       c.hasFloat = !!c.hasFloat;
       c.floatRequired = parseFloat(c.floatRequired) || 0;
+      c.flatFee = parseFloat(c.flatFee) || 0;
+      if (c.flatFee < 0) c.flatFee = 0;
     });
   });
   return cfg;
@@ -659,25 +660,30 @@ function round(v) { return Math.round((parseFloat(v) || 0) * 100) / 100; }
 /**
  * Float + split calculation for one category.
  * floatOwedIn = amount still owed into float from prior collections (>= 0)
+ * flatFee (e.g. Jukebox £20) is taken off gross first and goes to supplier; no MGD when set.
  * Returns net after float; MGD/SS/CL on net only.
  */
-function calcCategory(gross, rate, hasFloat, floatRequired, floatOwedIn) {
+function calcCategory(gross, rate, hasFloat, floatRequired, floatOwedIn, flatFee) {
   gross = parseFloat(gross) || 0;
   rate = parseFloat(rate);
   if (isNaN(rate)) rate = 0.5;
   floatRequired = hasFloat ? (parseFloat(floatRequired) || 0) : 0;
   floatOwedIn = hasFloat ? (parseFloat(floatOwedIn) || 0) : 0;
+  flatFee = parseFloat(flatFee) || 0;
   if (floatRequired < 0) floatRequired = 0;
   if (floatOwedIn < 0) floatOwedIn = 0;
 
+  const fee = flatFee > 0 ? Math.min(flatFee, gross) : 0;
+  const afterFee = gross - fee;
+
   const toRecover = hasFloat ? (floatRequired + floatOwedIn) : 0;
-  const floatTaken = Math.min(gross, toRecover);
-  const net = gross - floatTaken;
+  const floatTaken = Math.min(afterFee, toRecover);
+  const net = afterFee - floatTaken;
   const floatOwedAfter = toRecover - floatTaken;
 
-  const mgd = net * MGD_RATE;
+  const mgd = flatFee > 0 ? 0 : net * MGD_RATE;
   const cashLeft = net * rate;
-  const supplierShare = net - cashLeft;
+  const supplierShare = (net - cashLeft) + fee;
 
   return {
     gross: round(gross),
@@ -834,8 +840,11 @@ function renderForm() {
 
   for (const cat of loc.categories) {
     const fid = fieldId(loc, cat);
+    const sub = cat.flatFee > 0
+      ? `Fee £${(cat.flatFee || 0).toFixed(0)} · Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`
+      : `Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%`;
     html += `<tr>
-      <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">Site ${(cat.rate*100).toFixed(0)}% · Supp ${((1-cat.rate)*100).toFixed(0)}%</span></td>
+      <td><strong>${esc(cat.name)}</strong><br><span style="font-size:10px;color:#888">${esc(sub)}</span></td>
       <td><input type="number" step="any" id="gross_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
       <td><input type="number" step="any" min="0" id="floatreq_${fid}" oninput="updateFormCalcs()" placeholder="0"></td>
       <td style="font-size:11px" id="float_${fid}">—</td>
@@ -910,13 +919,16 @@ function updateFormCalcs() {
       const owed = getFloatOwedIn(loc.id, cat.id, date, null);
       // Apply float whenever a value is entered or there is carry-in (pool never uses this path)
       const useFloat = true;
-      const r = calcCategory(gross, cat.rate, useFloat, floatReq, owed);
+      const r = calcCategory(gross, cat.rate, useFloat, floatReq, owed, cat.flatFee);
 
       const netEl = document.getElementById('net_' + fid);
       const splitEl = document.getElementById('split_' + fid);
       const floatEl = document.getElementById('float_' + fid);
       if (netEl) netEl.textContent = r.net.toFixed(2);
-      if (splitEl) splitEl.innerHTML = `MGD £${r.mgd.toFixed(2)}<br>SS £${r.supplierShare.toFixed(2)}<br>Site £${r.cashLeft.toFixed(2)}`;
+      if (splitEl) {
+        const fee = cat.flatFee > 0 ? Math.min(cat.flatFee, r.gross) : 0;
+        splitEl.innerHTML = (cat.flatFee > 0 ? `Fee £${fee.toFixed(2)}<br>` : `MGD £${r.mgd.toFixed(2)}<br>`) + `SS £${r.supplierShare.toFixed(2)}<br>Site £${r.cashLeft.toFixed(2)}`;
+      }
       if (floatEl) {
         const defF = cat.floatRequired || 0;
         const diff = round(defF - floatReq);
@@ -978,10 +990,10 @@ function buildEntryFromForm() {
       const gross = parseFloat(document.getElementById('gross_' + fid)?.value) || 0;
       const floatReq = parseFloat(document.getElementById('floatreq_' + fid)?.value) || 0;
       const owed = getFloatOwedIn(loc.id, cat.id, date, null);
-      const r = calcCategory(gross, cat.rate, true, floatReq, owed);
+      const r = calcCategory(gross, cat.rate, true, floatReq, owed, cat.flatFee);
       locData.categories.push({
         id: cat.id, name: cat.name, rate: cat.rate,
-        hasFloat: true, floatRequired: floatReq,
+        hasFloat: true, floatRequired: floatReq, flatFee: cat.flatFee || 0,
         cash: r.gross, gross: r.gross,
         floatTaken: r.floatTaken, floatOwedIn: r.floatOwedIn, floatOwedAfter: r.floatOwedAfter,
         net: r.net, total: r.net, mgd: r.mgd, cashLeft: r.cashLeft, supplierShare: r.supplierShare
@@ -1512,8 +1524,8 @@ function blankDraftSite() {
     poolRent: 0,
     poolPercent: 50,
     categories: [
-      { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0 },
-      { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0 }
+      { id: uid(), name: 'Reels', rate: 0.6, hasFloat: true, floatRequired: 0, flatFee: 0 },
+      { id: uid(), name: 'Digital', rate: 0.5, hasFloat: true, floatRequired: 0, flatFee: 0 }
     ]
   };
 }
@@ -1565,9 +1577,11 @@ function renderSettings() {
     html += `<div class="cat-row">
       <label>Name<br><input type="text" value="${esc(cat.name)}" onchange="draftSite.categories[${ci}].name=this.value"></label>
       <label>Site share %<br><input type="number" min="0" max="100" step="1" value="${clPct}" oninput="onDraftRatePct(${ci}, this.value)" onchange="onDraftRatePct(${ci}, this.value)"></label>
-      <div class="rate-summary" id="draft_rate_sum_${ci}">Site ${clPct}% · Supplier ${ssPct}%</div>
+      <div class="rate-summary" id="draft_rate_sum_${ci}">Site ${clPct}% · Supplier ${ssPct}%${cat.flatFee > 0 ? ' · Fee £' + cat.flatFee : ''}</div>
       <label>Float?<br><input type="checkbox" ${cat.hasFloat ? 'checked' : ''} onchange="draftSite.categories[${ci}].hasFloat=this.checked;renderSettings()"></label>
       <label>Default float £<br><input type="number" min="0" step="any" value="${cat.floatRequired||0}" ${cat.hasFloat ? '' : 'disabled'} onchange="draftSite.categories[${ci}].floatRequired=parseFloat(this.value)||0"></label>
+      <label>Flat fee (no MGD)<br><input type="checkbox" ${cat.flatFee > 0 ? 'checked' : ''} onchange="draftSite.categories[${ci}].flatFee=this.checked?20:0;renderSettings()"></label>
+      <label>Fee £<br><input type="number" min="0" step="any" value="${cat.flatFee||0}" ${cat.flatFee > 0 ? '' : 'disabled'} onchange="draftSite.categories[${ci}].flatFee=parseFloat(this.value)||0"></label>
       <button class="btn btn-danger btn-sm" onclick="draftRemoveCategory(${ci})">×</button>
     </div>`;
   });
@@ -1629,13 +1643,14 @@ function onDraftRatePct(ci, val) {
   const sum = document.getElementById('draft_rate_sum_' + ci);
   if (sum) {
     const ss = 100 - Math.round(pct);
-    sum.textContent = 'Site ' + Math.round(pct) + '% · Supplier ' + ss + '%';
+    const fee = draftSite.categories[ci].flatFee || 0;
+    sum.textContent = 'Site ' + Math.round(pct) + '% · Supplier ' + ss + '%' + (fee > 0 ? ' · Fee £' + fee : '');
   }
 }
 
 function draftAddCategory() {
   ensureDraft();
-  draftSite.categories.push({ id: uid(), name: 'New', rate: 0.5, hasFloat: true, floatRequired: 0 });
+  draftSite.categories.push({ id: uid(), name: 'New', rate: 0.5, hasFloat: true, floatRequired: 0, flatFee: 0 });
   renderSettings();
 }
 
